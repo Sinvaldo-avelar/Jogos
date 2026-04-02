@@ -1,0 +1,686 @@
+'use client';
+
+import { useState, useEffect, useMemo } from 'react';
+
+export default function Home() {
+  const [jogosInput, setJogosInput] = useState(""); 
+  const [jogosProcessados, setJogosProcessados] = useState([]);
+  const [resultadoInput, setResultadoInput] = useState("");
+  const [custoPorJogo, setCustoPorJogo] = useState(3.00); 
+  const [premio14, setPremio14] = useState(1500.00);
+  const [premio15, setPremio15] = useState(500000.00);
+  const [mounted, setMounted] = useState(false);
+
+  // NOVO: Estado para o Volante Interativo
+  const [volanteSelecionados, setVolanteSelecionados] = useState([]);
+
+  useEffect(() => {
+    const salvos = localStorage.getItem('estrategia_jogos');
+    const resultadoSalvo = localStorage.getItem('estrategia_resultado');
+    const custoSalvo = localStorage.getItem('estrategia_custo');
+    if (salvos) setJogosProcessados(JSON.parse(salvos));
+    if (resultadoSalvo) setResultadoInput(resultadoSalvo);
+    if (custoSalvo) setCustoPorJogo(parseFloat(custoSalvo));
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (mounted) {
+      localStorage.setItem('estrategia_jogos', JSON.stringify(jogosProcessados));
+      localStorage.setItem('estrategia_resultado', resultadoInput);
+      localStorage.setItem('estrategia_custo', custoPorJogo.toString());
+    }
+  }, [jogosProcessados, resultadoInput, custoPorJogo, mounted]);
+
+  // FUNÇÃO PARA CLICAR NO NÚMERO DO VOLANTE
+  const toggleNumeroVolante = (n) => {
+    if (volanteSelecionados.includes(n)) {
+      setVolanteSelecionados(volanteSelecionados.filter(num => num !== n));
+    } else if (volanteSelecionados.length < 15) {
+      setVolanteSelecionados([...volanteSelecionados, n].sort((a, b) => a - b));
+    }
+  };
+
+  const salvarJogoVolante = () => {
+    if (volanteSelecionados.length === 15) {
+      setJogosProcessados([volanteSelecionados, ...jogosProcessados]);
+      setVolanteSelecionados([]); // Limpa o volante para o próximo
+    }
+  };
+
+  const importarJogos = () => {
+    const linhas = jogosInput.trim().split('\n');
+    const novosJogos = linhas.map(linha => {
+      return linha.trim().split(/\s+/).map(Number).filter(n => n > 0 && n <= 25);
+    }).filter(j => j.length > 0);
+    setJogosProcessados([...jogosProcessados, ...novosJogos]);
+    setJogosInput(""); 
+  };
+
+  const deletarUmJogo = (indexParaRemover) => {
+    setJogosProcessados(jogosProcessados.filter((_, idx) => idx !== indexParaRemover));
+  };
+
+  const limparSistema = () => {
+    if(confirm("Deseja apagar TUDO?")) {
+      setJogosInput("");
+      setJogosProcessados([]);
+      setResultadoInput("");
+      setVolanteSelecionados([]);
+      localStorage.clear();
+    }
+  };
+
+  const dezenasSorteadas = useMemo(() => {
+    return resultadoInput.trim().split(/\s+/).map(Number).filter(n => n > 0 && n <= 25);
+  }, [resultadoInput]);
+
+  const analise = useMemo(() => {
+    const investimentoTotal = jogosProcessados.length * custoPorJogo;
+    let totalPremios = 0;
+    let cont14 = 0;
+    let cont15 = 0;
+
+    const lista = jogosProcessados.map((jogo, id) => {
+      const acertos = jogo.filter(n => dezenasSorteadas.includes(n)).length;
+      if (acertos === 11) totalPremios += 7;
+      if (acertos === 12) totalPremios += 14;
+      if (acertos === 13) totalPremios += 35;
+      if (acertos === 14) { totalPremios += premio14; cont14++; }
+      if (acertos === 15) { totalPremios += premio15; cont15++; }
+      return { jogo, acertos, idOriginal: id };
+    });
+
+    const saldoFinal = totalPremios - investimentoTotal;
+    return { lista, totalPremios, investimentoTotal, saldoFinal, cont14, cont15 };
+  }, [jogosProcessados, dezenasSorteadas, custoPorJogo, premio14, premio15]);
+
+  if (!mounted) return null;
+
+  return (
+    <div style={styles.container}>
+      <header style={styles.header}>
+        <div>
+          <h1 style={{ margin: 0, color: '#0f172a', fontSize: '24px' }}>ESTRATÉGIA MATEMÁTICA PRO</h1>
+          <p style={{ margin: 0, color: '#64748b', fontSize: '11px', fontWeight: 'bold' }}>GESTOR DE VOLANTES ILIMITADOS</p>
+        </div>
+        <button style={styles.btnDeleteAll} onClick={limparSistema}>LIMPAR TUDO</button>
+      </header>
+
+      <div style={styles.mainLayout}>
+        <div style={styles.sidebar}>
+          
+          {/* NOVO: VOLANTE INTERATIVO */}
+          <section style={styles.card}>
+            <h3 style={styles.cardTitle}>1. VOLANTE VIRTUAL ({volanteSelecionados.length}/15)</h3>
+            <div style={styles.volanteGrid}>
+              {Array.from({ length: 25 }, (_, i) => i + 1).map(n => (
+                <button 
+                  key={n} 
+                  onClick={() => toggleNumeroVolante(n)}
+                  style={{
+                    ...styles.volanteDezena,
+                    backgroundColor: volanteSelecionados.includes(n) ? '#3b82f6' : '#f1f5f9',
+                    color: volanteSelecionados.includes(n) ? 'white' : '#64748b',
+                    borderColor: volanteSelecionados.includes(n) ? '#2563eb' : '#e2e8f0'
+                  }}
+                >
+                  {String(n).padStart(2, '0')}
+                </button>
+              ))}
+            </div>
+            <button 
+              disabled={volanteSelecionados.length !== 15}
+              onClick={salvarJogoVolante}
+              style={{
+                ...styles.btnSalvarVolante,
+                opacity: volanteSelecionados.length === 15 ? 1 : 0.5,
+                cursor: volanteSelecionados.length === 15 ? 'pointer' : 'not-allowed'
+              }}
+            >
+              {volanteSelecionados.length === 15 ? "SALVAR JOGO NO PAINEL" : `FALTAM ${15 - volanteSelecionados.length} NÚMEROS`}
+            </button>
+          </section>
+
+          <section style={styles.card}>
+            <h3 style={styles.cardTitle}>2. AJUSTE DE VALORES</h3>
+            <div style={styles.inputRow}>
+              <span>Custo Jogo:</span>
+              <input type="number" step="0.01" style={styles.inputSmall} value={custoPorJogo} onChange={(e) => setCustoPorJogo(parseFloat(e.target.value) || 0)}/>
+            </div>
+            <div style={styles.inputRow}>
+              <span>Prêmio 14 pts:</span>
+              <input type="number" style={styles.inputSmall} value={premio14} onChange={(e) => setPremio14(parseFloat(e.target.value) || 0)}/>
+            </div>
+            <div style={styles.inputRow}>
+              <span>Prêmio 15 pts:</span>
+              <input type="number" style={styles.inputSmall} value={premio15} onChange={(e) => setPremio15(parseFloat(e.target.value) || 0)}/>
+            </div>
+          </section>
+
+          <section style={styles.card}>
+            <h3 style={styles.cardTitle}>3. ENTRADA (ILIMITADA)</h3>
+            <textarea 
+              style={styles.textarea}
+              placeholder="Ou cole seus jogos aqui..."
+              value={jogosInput}
+              onChange={(e) => setJogosInput(e.target.value)}
+            />
+            <button style={styles.btnImportar} onClick={importarJogos}>IMPORTAR E SOMAR</button>
+          </section>
+
+          <section style={styles.card}>
+            <h3 style={styles.cardTitle}>4. CONFERIDOR</h3>
+            <input style={styles.inputResultado} placeholder="01 02 03..." value={resultadoInput} onChange={(e) => setResultadoInput(e.target.value)}/>
+          </section>
+
+          <section style={{ ...styles.card, borderTop: '5px solid #3b82f6', backgroundColor: '#eff6ff' }}>
+            <h3 style={{ ...styles.cardTitle, color: '#1e40af' }}>5. RESUMO DA OPERAÇÃO</h3>
+            <div style={styles.financeiroRow}><span>Investimento:</span><b>R$ {analise.investimentoTotal.toLocaleString('pt-br', {minimumFractionDigits: 2})}</b></div>
+            <div style={styles.financeiroRow}><span>Total Prêmios:</span><b style={{color: '#15803d'}}>R$ {analise.totalPremios.toLocaleString('pt-br', {minimumFractionDigits: 2})}</b></div>
+            
+            {analise.cont14 > 0 && <div style={styles.tagAviso}>🎯 {analise.cont14}x prêmio de 14 pts!</div>}
+            {analise.cont15 > 0 && <div style={styles.tagAvisoOuro}>🏆 {analise.cont15}x prêmio de 15 pts!</div>}
+
+            <div style={{...styles.saldoBox, backgroundColor: analise.saldoFinal >= 0 ? '#dcfce7' : '#fee2e2'}}>
+              <span style={{fontSize: '10px'}}>SALDO LÍQUIDO:</span>
+              <div style={{fontSize: '20px', fontWeight: '900', color: analise.saldoFinal >= 0 ? '#15803d' : '#b91c1c'}}>
+                R$ {analise.saldoFinal.toLocaleString('pt-br', {minimumFractionDigits: 2})}
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div style={{ ...styles.card, flex: 1 }}>
+          <h3 style={styles.cardTitle}>PAINEL DE ANÁLISE ({jogosProcessados.length} JOGOS)</h3>
+          <div style={styles.grid}>
+            {analise.lista.map((res, idx) => {
+              const isWin = res.acertos >= 11;
+              const isEpic = res.acertos >= 14;
+              return (
+                <div key={idx} style={{ 
+                  ...styles.jogoBox, 
+                  border: isEpic ? '2px solid #f59e0b' : (isWin ? '1px solid #22c55e' : '1px solid #f1f5f9'), 
+                  backgroundColor: isEpic ? '#fffbeb' : (isWin ? '#f0fdf4' : '#fff') 
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', alignItems: 'center' }}>
+                    <small style={{ color: '#cbd5e1', fontSize: '10px' }}>#{idx + 1}</small>
+                    <div style={{display: 'flex', gap: '5px', alignItems: 'center'}}>
+                        <b style={{ color: isEpic ? '#d97706' : (isWin ? '#16a34a' : '#94a3b8'), fontSize: '11px' }}>{res.acertos} pts</b>
+                        <button onClick={() => deletarUmJogo(idx)} style={styles.btnDeletarUm}>✕</button>
+                    </div>
+                  </div>
+                  <div style={styles.dezenasRow}>
+                    {res.jogo.map(n => (
+                      <span key={n} style={{ 
+                        ...styles.dezena, 
+                        backgroundColor: dezenasSorteadas.includes(n) ? (isEpic ? '#f59e0b' : (isWin ? '#22c55e' : '#64748b')) : '#f8fafc',
+                        color: dezenasSorteadas.includes(n) ? 'white' : '#94a3b8'
+                      }}>{String(n).padStart(2, '0')}</span>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const styles = {
+  container: { backgroundColor: '#f8fafc', minHeight: '100vh', padding: '25px', fontFamily: 'sans-serif' },
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', borderBottom: '1px solid #e2e8f0', paddingBottom: '15px' },
+  btnDeleteAll: { backgroundColor: '#fee2e2', color: '#b91c1c', border: '1px solid #fecaca', padding: '8px 15px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '11px' },
+  mainLayout: { display: 'flex', gap: '25px', alignItems: 'flex-start' },
+  sidebar: { width: '320px', display: 'flex', flexDirection: 'column', gap: '20px' },
+  card: { backgroundColor: 'white', padding: '18px', borderRadius: '15px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' },
+  cardTitle: { fontSize: '9px', color: '#94a3b8', fontWeight: '800', marginBottom: '12px', borderBottom: '1px solid #f1f5f9', paddingBottom: '6px', textTransform: 'uppercase' },
+  volanteGrid: { display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '5px', marginBottom: '15px' },
+  volanteDezena: { height: '35px', borderRadius: '6px', border: '1px solid', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer', transition: '0.2s' },
+  btnSalvarVolante: { width: '100%', padding: '12px', background: '#22c55e', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '12px' },
+  textarea: { width: '100%', height: '80px', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '11px', boxSizing: 'border-box', marginBottom: '10px' },
+  btnImportar: { width: '100%', backgroundColor: '#0f172a', color: 'white', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' },
+  inputResultado: { width: '100%', padding: '12px', fontSize: '20px', textAlign: 'center', borderRadius: '8px', border: '2px solid #e2e8f0', color: '#3b82f6', outline: 'none', boxSizing: 'border-box' },
+  inputRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' },
+  inputSmall: { width: '100px', padding: '5px', borderRadius: '5px', border: '1px solid #e2e8f0', textAlign: 'right', fontWeight: 'bold', fontSize: '12px' },
+  financeiroRow: { display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '5px' },
+  tagAviso: { backgroundColor: '#fef3c7', color: '#92400e', padding: '5px', borderRadius: '5px', fontSize: '11px', fontWeight: 'bold', marginTop: '10px', textAlign: 'center' },
+  tagAvisoOuro: { backgroundColor: '#fde68a', color: '#92400e', padding: '8px', borderRadius: '5px', fontSize: '12px', fontWeight: '900', marginTop: '5px', textAlign: 'center', border: '1px solid #f59e0b' },
+  saldoBox: { marginTop: '15px', padding: '10px', borderRadius: '10px', textAlign: 'center' },
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '10px', maxHeight: '80vh', overflowY: 'auto' },
+  jogoBox: { padding: '10px', borderRadius: '10px' },
+  dezenasRow: { display: 'flex', flexWrap: 'wrap', gap: '3px' },
+  dezena: { width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '5px', fontSize: '9px', fontWeight: 'bold' },
+  btnDeletarUm: { backgroundColor: 'transparent', color: '#ef4444', border: 'none', cursor: 'pointer', fontSize: '12px' }
+};
+
+
+
+
+'use client';
+
+import { useState, useEffect, useMemo } from 'react';
+
+export default function Home() {
+  const [jogosInput, setJogosInput] = useState(""); 
+  const [jogosProcessados, setJogosProcessados] = useState([]);
+  const [resultadoInput, setResultadoInput] = useState("");
+  const [custoPorJogo, setCustoPorJogo] = useState(3.00); 
+  const [premio14, setPremio14] = useState(1500.00);
+  const [premio15, setPremio15] = useState(500000.00);
+  const [mounted, setMounted] = useState(false);
+  const [volanteSelecionados, setVolanteSelecionados] = useState([]);
+
+  useEffect(() => {
+    const salvos = localStorage.getItem('estrategia_jogos');
+    const resultadoSalvo = localStorage.getItem('estrategia_resultado');
+    if (salvos) setJogosProcessados(JSON.parse(salvos));
+    if (resultadoSalvo) setResultadoInput(resultadoSalvo);
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (mounted) {
+      localStorage.setItem('estrategia_jogos', JSON.stringify(jogosProcessados));
+      localStorage.setItem('estrategia_resultado', resultadoInput);
+    }
+  }, [jogosProcessados, resultadoInput, mounted]);
+
+  const toggleNumeroVolante = (n) => {
+    if (volanteSelecionados.includes(n)) {
+      setVolanteSelecionados(volanteSelecionados.filter(num => num !== n));
+    } else if (volanteSelecionados.length < 15) {
+      setVolanteSelecionados([...volanteSelecionados, n].sort((a, b) => a - b));
+    }
+  };
+
+  // --- A MÁGICA DA SUA IDEIA ESTÁ AQUI ---
+  const salvarJogoEInverter = () => {
+    if (volanteSelecionados.length === 15) {
+      // 1. Salva o jogo atual
+      setJogosProcessados([volanteSelecionados, ...jogosProcessados]);
+      
+      // 2. Descobre quais dezenas sobraram (as 10 que não foram marcadas)
+      const todas = Array.from({ length: 25 }, (_, i) => i + 1);
+      const sobraram = todas.filter(n => !volanteSelecionados.includes(n));
+      
+      // 3. Deixa as 10 que sobraram marcadas para o próximo jogo
+      setVolanteSelecionados(sobraram);
+      alert("Jogo salvo! As 10 dezenas que sobraram foram marcadas. Escolha mais 5!");
+    }
+  };
+
+  const importarJogos = () => {
+    const linhas = jogosInput.trim().split('\n');
+    const novosJogos = linhas.map(linha => {
+      return linha.trim().split(/\s+/).map(Number).filter(n => n > 0 && n <= 25);
+    }).filter(j => j.length > 0);
+    setJogosProcessados([...jogosProcessados, ...novosJogos]);
+    setJogosInput(""); 
+  };
+
+  const deletarUmJogo = (indexParaRemover) => {
+    setJogosProcessados(jogosProcessados.filter((_, idx) => idx !== indexParaRemover));
+  };
+
+  const limparSistema = () => {
+    if(confirm("Deseja apagar TUDO?")) {
+      setJogosProcessados([]);
+      setVolanteSelecionados([]);
+      localStorage.clear();
+    }
+  };
+
+  const dezenasSorteadas = useMemo(() => {
+    return resultadoInput.trim().split(/\s+/).map(Number).filter(n => n > 0 && n <= 25);
+  }, [resultadoInput]);
+
+  const analise = useMemo(() => {
+    const investimentoTotal = jogosProcessados.length * custoPorJogo;
+    let totalPremios = 0;
+    let cont14 = 0; let cont15 = 0;
+    const lista = jogosProcessados.map((jogo, id) => {
+      const acertos = jogo.filter(n => dezenasSorteadas.includes(n)).length;
+      if (acertos === 11) totalPremios += 7;
+      if (acertos === 12) totalPremios += 14;
+      if (acertos === 13) totalPremios += 35;
+      if (acertos === 14) { totalPremios += premio14; cont14++; }
+      if (acertos === 15) { totalPremios += premio15; cont15++; }
+      return { jogo, acertos, idOriginal: id };
+    });
+    return { lista, totalPremios, investimentoTotal, saldoFinal: totalPremios - investimentoTotal, cont14, cont15 };
+  }, [jogosProcessados, dezenasSorteadas, custoPorJogo, premio14, premio15]);
+
+  if (!mounted) return null;
+
+  return (
+    <div style={styles.container}>
+      <header style={styles.header}>
+        <div>
+          <h1 style={{ margin: 0, color: '#0f172a', fontSize: '24px' }}>ESTRATÉGIA DAS SOBRAS</h1>
+          <p style={{ margin: 0, color: '#64748b', fontSize: '11px', fontWeight: 'bold' }}>SISTEMA DE ROTAÇÃO DE DEZENAS</p>
+        </div>
+        <button style={styles.btnDeleteAll} onClick={limparSistema}>LIMPAR TUDO</button>
+      </header>
+
+      <div style={styles.mainLayout}>
+        <div style={styles.sidebar}>
+          
+          <section style={styles.card}>
+            <h3 style={styles.cardTitle}>VOLANTE INTERATIVO ({volanteSelecionados.length}/15)</h3>
+            <div style={styles.volanteGrid}>
+              {Array.from({ length: 25 }, (_, i) => i + 1).map(n => (
+                <button 
+                  key={n} 
+                  onClick={() => toggleNumeroVolante(n)}
+                  style={{
+                    ...styles.volanteDezena,
+                    backgroundColor: volanteSelecionados.includes(n) ? '#3b82f6' : '#f1f5f9',
+                    color: volanteSelecionados.includes(n) ? 'white' : '#64748b',
+                    borderColor: volanteSelecionados.includes(n) ? '#2563eb' : '#e2e8f0'
+                  }}
+                >
+                  {String(n).padStart(2, '0')}
+                </button>
+              ))}
+            </div>
+            <button 
+              disabled={volanteSelecionados.length !== 15}
+              onClick={salvarJogoEInverter}
+              style={{
+                ...styles.btnSalvarVolante,
+                background: volanteSelecionados.length === 15 ? '#22c55e' : '#94a3b8',
+                cursor: volanteSelecionados.length === 15 ? 'pointer' : 'not-allowed'
+              }}
+            >
+              {volanteSelecionados.length === 15 ? "SALVAR E MANTER SOBRAS" : `MARQUE MAIS ${15 - volanteSelecionados.length}`}
+            </button>
+            <p style={{fontSize: '10px', marginTop: '10px', color: '#64748b'}}>Ao salvar, as 10 dezenas não usadas ficarão marcadas para o próximo jogo!</p>
+          </section>
+
+          <section style={styles.card}>
+            <h3 style={styles.cardTitle}>CONFERIDOR</h3>
+            <input style={styles.inputResultado} placeholder="Resultado" value={resultadoInput} onChange={(e) => setResultadoInput(e.target.value)}/>
+          </section>
+
+          <section style={{ ...styles.card, backgroundColor: '#f0fdf4' }}>
+            <h3 style={styles.cardTitle}>RESUMO</h3>
+            <div style={styles.financeiroRow}><span>Investimento:</span><b>R$ {analise.investimentoTotal.toFixed(2)}</b></div>
+            <div style={styles.financeiroRow}><span>Prêmios:</span><b style={{color: '#15803d'}}>R$ {analise.totalPremios.toFixed(2)}</b></div>
+          </section>
+        </div>
+
+        <div style={{ ...styles.card, flex: 1 }}>
+          <h3 style={styles.cardTitle}>MEUS JOGOS ({jogosProcessados.length})</h3>
+          <div style={styles.grid}>
+            {analise.lista.map((res, idx) => (
+              <div key={idx} style={styles.jogoBox}>
+                <div style={styles.boxHeader}>
+                  <span>#{jogosProcessados.length - idx}</span>
+                  <b>{res.acertos} pts</b>
+                  <button onClick={() => deletarUmJogo(idx)} style={styles.btnDeletarUm}>✕</button>
+                </div>
+                <div style={styles.dezenasRow}>
+                  {res.jogo.map(n => (
+                    <span key={n} style={{ 
+                      ...styles.dezena, 
+                      backgroundColor: dezenasSorteadas.includes(n) ? '#22c55e' : '#f8fafc',
+                      color: dezenasSorteadas.includes(n) ? 'white' : '#94a3b8'
+                    }}>{String(n).padStart(2, '0')}</span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const styles = {
+  container: { backgroundColor: '#f8fafc', minHeight: '100vh', padding: '20px', fontFamily: 'sans-serif' },
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' },
+  btnDeleteAll: { backgroundColor: '#fee2e2', color: '#b91c1c', border: 'none', padding: '8px 15px', borderRadius: '8px', cursor: 'pointer' },
+  mainLayout: { display: 'flex', gap: '20px' },
+  sidebar: { width: '300px', display: 'flex', flexDirection: 'column', gap: '15px' },
+  card: { backgroundColor: 'white', padding: '15px', borderRadius: '12px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' },
+  cardTitle: { fontSize: '10px', color: '#94a3b8', fontWeight: 'bold', marginBottom: '10px', textTransform: 'uppercase' },
+  volanteGrid: { display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '5px', marginBottom: '15px' },
+  volanteDezena: { height: '35px', borderRadius: '6px', border: '1px solid', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' },
+  btnSalvarVolante: { width: '100%', padding: '12px', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold' },
+  inputResultado: { width: '100%', padding: '10px', textAlign: 'center', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '18px' },
+  financeiroRow: { display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '5px' },
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '10px', maxHeight: '70vh', overflowY: 'auto' },
+  jogoBox: { padding: '10px', borderRadius: '10px', border: '1px solid #e2e8f0', background: 'white' },
+  boxHeader: { display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '5px' },
+  dezenasRow: { display: 'flex', flexWrap: 'wrap', gap: '2px' },
+  dezena: { width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '4px', fontSize: '9px', fontWeight: 'bold' },
+  btnDeletarUm: { background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }
+};
+
+
+'use client';
+
+import { useState, useEffect, useMemo } from 'react';
+
+export default function Home() {
+  const [jogosInput, setJogosInput] = useState(""); 
+  const [jogosProcessados, setJogosProcessados] = useState([]);
+  const [resultadoInput, setResultadoInput] = useState("");
+  const [custoPorJogo, setCustoPorJogo] = useState(3.00); 
+  const [premio14, setPremio14] = useState(1500.00);
+  const [premio15, setPremio15] = useState(500000.00);
+  const [mounted, setMounted] = useState(false);
+  const [volanteSelecionados, setVolanteSelecionados] = useState([]);
+
+  useEffect(() => {
+    const salvos = localStorage.getItem('estrategia_jogos');
+    const resultadoSalvo = localStorage.getItem('estrategia_resultado');
+    if (salvos) setJogosProcessados(JSON.parse(salvos));
+    if (resultadoSalvo) setResultadoInput(resultadoSalvo);
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (mounted) {
+      localStorage.setItem('estrategia_jogos', JSON.stringify(jogosProcessados));
+      localStorage.setItem('estrategia_resultado', resultadoInput);
+    }
+  }, [jogosProcessados, resultadoInput, mounted]);
+
+  // Estatísticas de Frequência das Dezenas
+  const freqDezenas = useMemo(() => {
+    const contagem = Array(26).fill(0);
+    jogosProcessados.forEach(jogo => {
+      jogo.forEach(num => contagem[num]++);
+    });
+    return contagem;
+  }, [jogosProcessados]);
+
+  const toggleNumeroVolante = (n) => {
+    if (volanteSelecionados.includes(n)) {
+      setVolanteSelecionados(volanteSelecionados.filter(num => num !== n));
+    } else if (volanteSelecionados.length < 15) {
+      setVolanteSelecionados([...volanteSelecionados, n].sort((a, b) => a - b));
+    }
+  };
+
+  const salvarJogoEInverter = () => {
+    if (volanteSelecionados.length === 15) {
+      setJogosProcessados([volanteSelecionados, ...jogosProcessados]);
+      const todas = Array.from({ length: 25 }, (_, i) => i + 1);
+      const sobraram = todas.filter(n => !volanteSelecionados.includes(n));
+      setVolanteSelecionados(sobraram);
+    }
+  };
+
+  const deletarUmJogo = (indexParaRemover) => {
+    setJogosProcessados(jogosProcessados.filter((_, idx) => idx !== indexParaRemover));
+  };
+
+  const limparSistema = () => {
+    if(confirm("Deseja apagar TUDO?")) {
+      setJogosProcessados([]);
+      setVolanteSelecionados([]);
+      localStorage.clear();
+    }
+  };
+
+  const dezenasSorteadas = useMemo(() => {
+    return resultadoInput.trim().split(/\s+/).map(Number).filter(n => n > 0 && n <= 25);
+  }, [resultadoInput]);
+
+  const analise = useMemo(() => {
+    const investimentoTotal = jogosProcessados.length * custoPorJogo;
+    let totalPremios = 0;
+    let cont14 = 0; let cont15 = 0;
+    const lista = jogosProcessados.map((jogo, id) => {
+      const acertos = jogo.filter(n => dezenasSorteadas.includes(n)).length;
+      if (acertos === 11) totalPremios += 7;
+      if (acertos === 12) totalPremios += 14;
+      if (acertos === 13) totalPremios += 35;
+      if (acertos === 14) { totalPremios += premio14; cont14++; }
+      if (acertos === 15) { totalPremios += premio15; cont15++; }
+      return { jogo, acertos, idOriginal: id };
+    });
+    return { lista, totalPremios, investimentoTotal, saldoFinal: totalPremios - investimentoTotal, cont14, cont15 };
+  }, [jogosProcessados, dezenasSorteadas, custoPorJogo, premio14, premio15]);
+
+  if (!mounted) return null;
+
+  return (
+    <div style={styles.container}>
+      <header style={styles.header}>
+        <div>
+          <h1 style={{ margin: 0, color: '#0f172a', fontSize: '24px' }}>ESTRATÉGIA DE INVESTIMENTO</h1>
+          <p style={{ margin: 0, color: '#64748b', fontSize: '11px', fontWeight: 'bold' }}>CONTROLE DE FREQUÊNCIA E SOBRAS</p>
+        </div>
+        <button style={styles.btnDeleteAll} onClick={limparSistema}>LIMPAR TUDO</button>
+      </header>
+
+      <div style={styles.mainLayout}>
+        <div style={styles.sidebar}>
+          
+          <section style={styles.card}>
+            <h3 style={styles.cardTitle}>VOLANTE VIRTUAL ({volanteSelecionados.length}/15)</h3>
+            <div style={styles.volanteGrid}>
+              {Array.from({ length: 25 }, (_, i) => i + 1).map(n => (
+                <button 
+                  key={n} 
+                  onClick={() => toggleNumeroVolante(n)}
+                  style={{
+                    ...styles.volanteDezena,
+                    backgroundColor: volanteSelecionados.includes(n) ? '#3b82f6' : '#f1f5f9',
+                    color: volanteSelecionados.includes(n) ? 'white' : '#64748b',
+                    borderColor: volanteSelecionados.includes(n) ? '#2563eb' : '#e2e8f0'
+                  }}
+                >
+                  {String(n).padStart(2, '0')}
+                </button>
+              ))}
+            </div>
+            <button 
+              disabled={volanteSelecionados.length !== 15}
+              onClick={salvarJogoEInverter}
+              style={{
+                ...styles.btnSalvarVolante,
+                background: volanteSelecionados.length === 15 ? '#22c55e' : '#94a3b8',
+                cursor: volanteSelecionados.length === 15 ? 'pointer' : 'not-allowed'
+              }}
+            >
+              {volanteSelecionados.length === 15 ? "SALVAR E MANTER SOBRAS" : `FALTAM ${15 - volanteSelecionados.length}`}
+            </button>
+          </section>
+
+          {/* NOVO: MAPA DE FREQUÊNCIA DAS DEZENAS */}
+          <section style={styles.card}>
+            <h3 style={styles.cardTitle}>FREQUÊNCIA DAS DEZENAS (NOS {jogosProcessados.length} JOGOS)</h3>
+            <div style={styles.statsScroll}>
+              {Array.from({ length: 25 }, (_, i) => i + 1).map(n => {
+                const percent = jogosProcessados.length > 0 ? (freqDezenas[n] / jogosProcessados.length) * 100 : 0;
+                return (
+                  <div key={n} style={styles.statRow}>
+                    <span style={styles.statNum}>{String(n).padStart(2, '0')}</span>
+                    <div style={styles.barBg}>
+                      <div style={{...styles.barFill, width: `${percent}%`}}></div>
+                    </div>
+                    <span style={styles.statCount}>{freqDezenas[n]}x</span>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          <section style={styles.card}>
+            <h3 style={styles.cardTitle}>CONFERIDOR</h3>
+            <input style={styles.inputResultado} placeholder="Ex: 01 02 05..." value={resultadoInput} onChange={(e) => setResultadoInput(e.target.value)}/>
+          </section>
+
+          <section style={{ ...styles.card, backgroundColor: '#eff6ff' }}>
+            <h3 style={styles.cardTitle}>INVESTIMENTO VS RETORNO</h3>
+            <div style={styles.financeiroRow}><span>Total Gasto:</span><b>R$ {analise.investimentoTotal.toFixed(2)}</b></div>
+            <div style={styles.financeiroRow}><span>Total Prêmios:</span><b style={{color: '#15803d'}}>R$ {analise.totalPremios.toFixed(2)}</b></div>
+            <div style={{...styles.saldoBox, color: analise.saldoFinal >= 0 ? '#15803d' : '#b91c1c'}}>
+              <b>SALDO: R$ {analise.saldoFinal.toFixed(2)}</b>
+            </div>
+          </section>
+        </div>
+
+        <div style={{ ...styles.card, flex: 1 }}>
+          <h3 style={styles.cardTitle}>PAINEL DE ANÁLISE ({jogosProcessados.length} JOGOS)</h3>
+          <div style={styles.grid}>
+            {analise.lista.map((res, idx) => (
+              <div key={idx} style={styles.jogoBox}>
+                <div style={styles.boxHeader}>
+                  <span>#{jogosProcessados.length - idx}</span>
+                  <b style={{color: res.acertos >= 11 ? '#15803d' : '#64748b'}}>{res.acertos} ACERTOS</b>
+                  <button onClick={() => deletarUmJogo(idx)} style={styles.btnDeletarUm}>✕</button>
+                </div>
+                <div style={styles.dezenasRow}>
+                  {res.jogo.map(n => (
+                    <span key={n} style={{ 
+                      ...styles.dezena, 
+                      backgroundColor: dezenasSorteadas.includes(n) ? '#22c55e' : '#f8fafc',
+                      color: dezenasSorteadas.includes(n) ? 'white' : '#94a3b8'
+                    }}>{String(n).padStart(2, '0')}</span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const styles = {
+  container: { backgroundColor: '#f1f5f9', minHeight: '100vh', padding: '20px', fontFamily: 'system-ui' },
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' },
+  btnDeleteAll: { backgroundColor: '#fee2e2', color: '#b91c1c', border: 'none', padding: '8px 15px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' },
+  mainLayout: { display: 'flex', gap: '20px' },
+  sidebar: { width: '300px', display: 'flex', flexDirection: 'column', gap: '15px' },
+  card: { backgroundColor: 'white', padding: '15px', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' },
+  cardTitle: { fontSize: '10px', color: '#64748b', fontWeight: '800', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' },
+  volanteGrid: { display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px', marginBottom: '10px' },
+  volanteDezena: { height: '32px', borderRadius: '4px', border: '1px solid', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' },
+  btnSalvarVolante: { width: '100%', padding: '10px', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold' },
+  statsScroll: { maxHeight: '200px', overflowY: 'auto', paddingRight: '5px' },
+  statRow: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' },
+  statNum: { fontSize: '11px', fontWeight: 'bold', width: '15px', color: '#1e293b' },
+  barBg: { flex: 1, backgroundColor: '#f1f5f9', height: '8px', borderRadius: '4px', overflow: 'hidden' },
+  barFill: { backgroundColor: '#3b82f6', height: '100%', borderRadius: '4px' },
+  statCount: { fontSize: '10px', width: '25px', textAlign: 'right', color: '#64748b' },
+  inputResultado: { width: '100%', padding: '10px', textAlign: 'center', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '16px' },
+  financeiroRow: { display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px' },
+  saldoBox: { marginTop: '10px', textAlign: 'center', borderTop: '1px solid #e2e8f0', paddingTop: '10px' },
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '8px', maxHeight: '80vh', overflowY: 'auto' },
+  jogoBox: { padding: '8px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white' },
+  boxHeader: { display: 'flex', justifyContent: 'space-between', fontSize: '9px', marginBottom: '4px' },
+  dezenasRow: { display: 'flex', flexWrap: 'wrap', gap: '2px' },
+  dezena: { width: '18px', height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '3px', fontSize: '8px', fontWeight: 'bold' },
+  btnDeletarUm: { background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '10px' }
+};
