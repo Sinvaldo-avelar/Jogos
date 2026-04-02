@@ -1,3 +1,21 @@
+// Salva um novo resultado da Lotomania
+export async function salvarResultadoLotomania({ concurso, data, numeros }) {
+  const { data: result, error } = await supabase
+    .from("lotomania_resultados")
+    .insert([{ concurso, data, numeros }]);
+  if (error) throw error;
+  return result;
+}
+
+// Busca todos os resultados cadastrados
+export async function buscarResultadosLotomania() {
+  const { data, error } = await supabase
+    .from("lotomania_resultados")
+    .select("id, concurso, data, numeros")
+    .order("concurso", { ascending: false });
+  if (error) throw error;
+  return data;
+}
 import { supabase } from "../lib/supabaseClient";
 
 // Salva um novo jogo da Lotomania

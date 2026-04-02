@@ -2,9 +2,69 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { salvarJogo as salvarJogoSupabase, buscarJogos as buscarJogosSupabase, apagarJogo as apagarJogoSupabase } from '../../lib/lotomaniaApi';
+
+import { salvarJogo as salvarJogoSupabase, buscarJogos as buscarJogosSupabase, apagarJogo as apagarJogoSupabase, salvarResultadoLotomania, buscarResultadosLotomania } from '../../lib/lotomaniaApi';
+
+
 
 export default function Lotomania() {
+  // Resultados salvos
+  const [resultados, setResultados] = useState([]);
+  const [carregandoResultados, setCarregandoResultados] = useState(true);
+
+  // Buscar resultados ao montar
+  useEffect(() => {
+    async function carregarResultados() {
+      try {
+        const data = await buscarResultadosLotomania();
+        setResultados(data || []);
+      } catch {
+        setResultados([]);
+      }
+      setCarregandoResultados(false);
+    }
+    carregarResultados();
+  }, []);
+  // Estado para adicionar resultado manual
+  const [adicionandoResultado, setAdicionandoResultado] = useState(false);
+  const [novoResultado, setNovoResultado] = useState({ concurso: '', data: '', numeros: '' });
+  const [salvandoResultado, setSalvandoResultado] = useState(false);
+  const [erroResultado, setErroResultado] = useState('');
+
+  // Função para salvar resultado no Supabase
+  const handleSalvarResultado = async () => {
+    setErroResultado('');
+    setSalvandoResultado(true);
+    try {
+      // Validação simples
+      if (!novoResultado.concurso || !novoResultado.data || !novoResultado.numeros) {
+        setErroResultado('Preencha todos os campos!');
+        setSalvandoResultado(false);
+        return;
+      }
+      // Números: transformar string em array de inteiros
+      const numerosArr = novoResultado.numeros
+        .split(/\D+/)
+        .map(n => parseInt(n, 10))
+        .filter(n => !isNaN(n) && n >= 0 && n <= 99);
+      if (numerosArr.length !== 20) {
+        setErroResultado('Informe exatamente 20 dezenas!');
+        setSalvandoResultado(false);
+        return;
+      }
+      await salvarResultadoLotomania({
+        concurso: parseInt(novoResultado.concurso, 10),
+        data: novoResultado.data,
+        numeros: numerosArr,
+      });
+      setNovoResultado({ concurso: '', data: '', numeros: '' });
+      setAdicionandoResultado(false);
+      alert('Resultado salvo com sucesso!');
+    } catch (e) {
+      setErroResultado('Erro ao salvar resultado!');
+    }
+    setSalvandoResultado(false);
+  };
   const [jogos, setJogos] = useState([]);
   const [resultadoInput, setResultadoInput] = useState("");
   const [mounted, setMounted] = useState(false);
@@ -170,7 +230,27 @@ export default function Lotomania() {
 
           <section style={styles.card}>
             <h3 style={styles.cardTitle}>CONFERIDOR</h3>
-            <input style={styles.inputRes} placeholder="Cole as 20 dezenas aqui..." value={resultadoInput} onChange={(e) => setResultadoInput(e.target.value)} />
+            {/* Select para escolher concurso salvo */}
+            <div style={{ marginBottom: 8 }}>
+              <select
+                style={{ ...styles.inputRes, width: '100%', marginBottom: 8 }}
+                value={resultadoInput}
+                onChange={e => {
+                  const val = e.target.value;
+                  setResultadoInput(val);
+                }}
+                disabled={carregandoResultados || resultados.length === 0}
+              >
+                <option value="">Selecione um concurso salvo...</option>
+                {resultados.map(r => (
+                  <option key={r.id} value={Array.isArray(r.numeros) ? r.numeros.join(' ') : r.numeros}>
+                    Concurso {r.concurso} - {r.data}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {/* Input manual, caso queira digitar */}
+            <input style={styles.inputRes} placeholder="Ou cole as 20 dezenas aqui..." value={resultadoInput} onChange={(e) => setResultadoInput(e.target.value)} />
             <div style={styles.resumoAcertos}>
               <div style={styles.resItem}><span>20pt</span><b>{analise.cont.c20}</b></div>
               <div style={styles.resItem}><span>19pt</span><b>{analise.cont.c19}</b></div>
@@ -179,6 +259,55 @@ export default function Lotomania() {
               <div style={styles.resItem}><span>16pt</span><b>{analise.cont.c16}</b></div>
               <div style={styles.resItem}><span>15pt</span><b>{analise.cont.c15}</b></div>
               <div style={styles.resItem}><span style={{ color: 'red' }}>0pt</span><b>{analise.cont.c0}</b></div>
+            </div>
+            <div style={{ marginTop: 16 }}>
+              {!adicionandoResultado ? (
+                <button style={{ ...styles.btnSalvar, backgroundColor: '#0ea5e9', marginTop: 0 }} onClick={() => setAdicionandoResultado(true)}>
+                  + Adicionar resultado
+                </button>
+              ) : (
+                <div style={{ marginTop: 10, background: '#f8fafc', padding: 10, borderRadius: 8 }}>
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                    <input
+                      style={{ ...styles.inputRes, width: 90, marginBottom: 0 }}
+                      placeholder="Concurso"
+                      type="number"
+                      value={novoResultado.concurso}
+                      onChange={e => setNovoResultado({ ...novoResultado, concurso: e.target.value })}
+                    />
+                    <input
+                      style={{ ...styles.inputRes, width: 120, marginBottom: 0 }}
+                      placeholder="Data"
+                      type="date"
+                      value={novoResultado.data}
+                      onChange={e => setNovoResultado({ ...novoResultado, data: e.target.value })}
+                    />
+                  </div>
+                  <input
+                    style={{ ...styles.inputRes, marginBottom: 8 }}
+                    placeholder="20 dezenas separadas por espaço ou vírgula"
+                    value={novoResultado.numeros}
+                    onChange={e => setNovoResultado({ ...novoResultado, numeros: e.target.value })}
+                  />
+                  {erroResultado && <div style={{ color: 'red', fontSize: 11, marginBottom: 6 }}>{erroResultado}</div>}
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      style={{ ...styles.btnSalvar, backgroundColor: '#16a34a', width: 'auto', padding: '8px 16px' }}
+                      onClick={handleSalvarResultado}
+                      disabled={salvandoResultado}
+                    >
+                      Salvar
+                    </button>
+                    <button
+                      style={{ ...styles.btnCancelar, width: 'auto', padding: '8px 16px' }}
+                      onClick={() => { setAdicionandoResultado(false); setErroResultado(''); }}
+                      disabled={salvandoResultado}
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </section>
         </div>
