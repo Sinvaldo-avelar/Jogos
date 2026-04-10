@@ -218,6 +218,9 @@ const styles = {
     display: "flex", 
     flexWrap: "wrap", 
     gap: 16, 
+    maxHeight: 420, // altura máxima visível
+    overflowY: "auto", // ativa barra de rolagem vertical
+    paddingRight: 4, // espaço para barra
   },
 
   jogoSalvoGrade: { 
