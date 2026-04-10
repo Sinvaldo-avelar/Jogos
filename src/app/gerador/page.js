@@ -5,11 +5,70 @@ import { useState, useEffect } from "react";
 const COLUNAS = 10;
 const NUMS = Array.from({ length: 10 }, (_, i) => i + 1);
 
+
+// Componente para o cartão de montar jogo
+function CartaoMontarJogo({ selecionadas, alternarNumero, salvarCartela, msg }) {
+  return (
+    <div style={styles.cardPrincipal}>
+      <h3 style={styles.cardTitle}>MONTAR NOVO JOGO</h3>
+      <div style={styles.gradeSelecao}>
+        {Array.from({ length: COLUNAS }, (_, linhaIdx) => (
+          <div key={linhaIdx} style={{ display: 'flex', gap: 4 }}>
+            {NUMS.map(num => {
+              const estado = selecionadas[linhaIdx][num - 1];
+              let background = "#fff";
+              let color = "#334155";
+              let border = "1px solid #cbd5e1";
+              if (estado === 1) {
+                background = "#3b82f6";
+                color = "#fff";
+                border = "2px solid #2563eb";
+              } else if (estado === 2) {
+                background = "#ef4444";
+                color = "#fff";
+                border = "2px solid #b91c1c";
+              }
+              return (
+                <button
+                  key={num}
+                  style={{
+                    ...styles.celulaCartela,
+                    background,
+                    color,
+                    border,
+                    cursor: "pointer",
+                  }}
+                  onClick={() => alternarNumero(linhaIdx, num)}
+                >
+                  {num.toString().padStart(2, "0")}
+                </button>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+      <button
+        style={{
+          ...styles.btnSalvar,
+          background: "#16a34a",
+          cursor: "pointer",
+        }}
+        onClick={salvarCartela}
+      >
+        SALVAR CARTELA
+      </button>
+      {msg && <div style={{ color: '#16a34a', marginTop: 8, fontWeight: 600 }}>{msg}</div>}
+    </div>
+  );
+}
+
 export default function Gerador() {
   // 0: normal, 1: azul, 2: vermelho
-  const [selecionadas, setSelecionadas] = useState(() => Array(COLUNAS).fill().map(() => Array(NUMS.length).fill(0)));
+  const [selecionadas1, setSelecionadas1] = useState(() => Array(COLUNAS).fill().map(() => Array(NUMS.length).fill(0)));
+  const [selecionadas2, setSelecionadas2] = useState(() => Array(COLUNAS).fill().map(() => Array(NUMS.length).fill(0)));
   const [salvos, setSalvos] = useState([]);
-  const [msg, setMsg] = useState("");
+  const [msg1, setMsg1] = useState("");
+  const [msg2, setMsg2] = useState("");
   const [montado, setMontado] = useState(false);
 
   useEffect(() => {
@@ -18,10 +77,23 @@ export default function Gerador() {
     setMontado(true);
   }, []);
 
-  const alternarNumero = (colIdx, num) => {
-    setMsg("");
+  const alternarNumero1 = (colIdx, num) => {
+    setMsg1("");
     if (num < 1 || num > 10) return;
-    setSelecionadas(sel => {
+    setSelecionadas1(sel => {
+      return sel.map((arr, i) => {
+        if (i !== colIdx) return arr;
+        const idx = num - 1;
+        const novoArr = [...arr];
+        novoArr[idx] = (novoArr[idx] + 1) % 3;
+        return novoArr;
+      });
+    });
+  };
+  const alternarNumero2 = (colIdx, num) => {
+    setMsg2("");
+    if (num < 1 || num > 10) return;
+    setSelecionadas2(sel => {
       return sel.map((arr, i) => {
         if (i !== colIdx) return arr;
         const idx = num - 1;
@@ -32,141 +104,129 @@ export default function Gerador() {
     });
   };
 
-  const salvarCartela = () => {
-    // Salva apenas os estados (array de 0,1,2)
-    const cartela = selecionadas.map(arr => [...arr]);
+  const salvarCartela1 = () => {
+    const cartela = selecionadas1.map(arr => [...arr]);
     const jaSalvo = salvos.some(salvo => JSON.stringify(salvo) === JSON.stringify(cartela));
     if (jaSalvo) {
-      setMsg("⚠️ Cartela já foi salva!");
+      setMsg1("⚠️ Cartela já foi salva!");
       return;
     }
     const novosSalvos = [cartela, ...salvos];
     setSalvos(novosSalvos);
     localStorage.setItem("gerador_cartelas", JSON.stringify(novosSalvos));
-    setMsg("Cartela salva!");
-    setSelecionadas(Array(COLUNAS).fill().map(() => Array(NUMS.length).fill(0)));
+    setMsg1("Cartela salva!");
+    setSelecionadas1(Array(COLUNAS).fill().map(() => Array(NUMS.length).fill(0)));
+  };
+  const salvarCartela2 = () => {
+    const cartela = selecionadas2.map(arr => [...arr]);
+    const jaSalvo = salvos.some(salvo => JSON.stringify(salvo) === JSON.stringify(cartela));
+    if (jaSalvo) {
+      setMsg2("⚠️ Cartela já foi salva!");
+      return;
+    }
+    const novosSalvos = [cartela, ...salvos];
+    setSalvos(novosSalvos);
+    localStorage.setItem("gerador_cartelas", JSON.stringify(novosSalvos));
+    setMsg2("Cartela salva!");
+    setSelecionadas2(Array(COLUNAS).fill().map(() => Array(NUMS.length).fill(0)));
   };
 
   if (!montado) return null;
 
   return (
     <div style={styles.container}>
+      <button
+        style={{
+          marginBottom: 18,
+          background: '#e0e7ef',
+          color: '#334155',
+          border: 'none',
+          borderRadius: 8,
+          padding: '10px 18px',
+          fontWeight: 700,
+          fontSize: 15,
+          cursor: 'pointer',
+          boxShadow: '0 2px 6px -2px #cbd5e1',
+        }}
+        onClick={() => {
+          if (typeof window !== 'undefined') {
+            window.location.href = '/';
+          }
+        }}
+      >
+        ⬅ Voltar para Painel de Jogos
+      </button>
       <h1 style={styles.title}>GERADOR DE CARTELA LOTOMANIA</h1>
-      
-      <div style={styles.msgFeedback}>{msg}</div>
 
-      <div style={styles.layoutPrincipal}>
-        {/* Lado Esquerdo: Seletor (Fixo na esquerda) */}
-        <div style={styles.colunaEsquerda}>
-          <div style={styles.cardPrincipal}>
-            <h3 style={styles.cardTitle}>MONTAR NOVO JOGO</h3>
-            <div style={styles.gradeSelecao}>
-              {Array.from({ length: COLUNAS }, (_, linhaIdx) => (
-                <div key={linhaIdx} style={{ display: 'flex', gap: 4 }}>
-                  {NUMS.map(num => {
-                    const estado = selecionadas[linhaIdx][num - 1];
-                    let background = "#fff";
-                    let color = "#334155";
-                    let border = "1px solid #cbd5e1";
-                    if (estado === 1) {
-                      background = "#3b82f6";
-                      color = "#fff";
-                      border = "2px solid #2563eb";
-                    } else if (estado === 2) {
-                      background = "#ef4444";
-                      color = "#fff";
-                      border = "2px solid #b91c1c";
-                    }
-                    return (
-                      <button
-                        key={num}
-                        style={{
-                          ...styles.celulaCartela,
-                          background,
-                          color,
-                          border,
-                          cursor: "pointer",
-                        }}
-                        onClick={() => alternarNumero(linhaIdx, num)}
-                      >
-                        {num.toString().padStart(2, "0")}
-                      </button>
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
-            <button
-              style={{
-                ...styles.btnSalvar,
-                background: "#16a34a",
-                cursor: "pointer",
-              }}
-              onClick={salvarCartela}
-            >
-              SALVAR CARTELA
-            </button>
-          </div>
-        </div>
+      <div style={{ display: 'flex', gap: 32, marginBottom: 32, justifyContent: 'center' }}>
+        <CartaoMontarJogo
+          selecionadas={selecionadas1}
+          alternarNumero={alternarNumero1}
+          salvarCartela={salvarCartela1}
+          msg={msg1}
+        />
+        <CartaoMontarJogo
+          selecionadas={selecionadas2}
+          alternarNumero={alternarNumero2}
+          salvarCartela={salvarCartela2}
+          msg={msg2}
+        />
+      </div>
 
-        {/* Lado Direito: Cartões Salvos */}
-        <div style={styles.colunaDireita}>
-          <h3 style={styles.cardTitle}>CARTELAS SALVAS ({salvos.length})</h3>
-          <div style={styles.gridSalvos}>
-            {salvos.map((arr, idx) => (
-              <div key={idx} style={styles.jogoSalvoGrade}>
-                {/* Numeração da Cartela */}
-                <div style={styles.badgeNumero}>Jogo #{salvos.length - idx}</div>
-                
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 12 }}>
-                  {arr.map((linha, linhaIdx) => (
-                    <div key={linhaIdx} style={{ display: 'flex', gap: 4 }}>
-                      {linha.map((estado, idx) => {
-                        let background = "#f8fafc";
-                        let color = "#cbd5e1";
-                        let border = "1px solid #f1f5f9";
-                        if (estado === 1) {
-                          background = "#3b82f6";
-                          color = "#fff";
-                          border = "1px solid #2563eb";
-                        } else if (estado === 2) {
-                          background = "#ef4444";
-                          color = "#fff";
-                          border = "1px solid #b91c1c";
-                        }
-                        return (
-                          <span
-                            key={idx}
-                            style={{
-                              ...styles.celulaCartela,
-                              width: 22,
-                              height: 22,
-                              fontSize: 10,
-                              background,
-                              color,
-                              border,
-                            }}
-                          >
-                            {(idx + 1).toString().padStart(2, "0")}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  ))}
-                </div>
-                <button
-                  style={styles.btnExcluir}
-                  onClick={() => {
-                    const novos = salvos.filter((_, i2) => i2 !== idx);
-                    setSalvos(novos);
-                    localStorage.setItem("gerador_cartelas", JSON.stringify(novos));
-                  }}
-                >
-                  Excluir
-                </button>
+      <div style={{ ...styles.colunaDireita, maxWidth: 900, margin: '0 auto' }}>
+        <h3 style={styles.cardTitle}>CARTELAS SALVAS ({salvos.length})</h3>
+        <div style={styles.gridSalvos}>
+          {salvos.map((arr, idx) => (
+            <div key={idx} style={styles.jogoSalvoGrade}>
+              <div style={styles.badgeNumero}>Jogo #{salvos.length - idx}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 12 }}>
+                {arr.map((linha, linhaIdx) => (
+                  <div key={linhaIdx} style={{ display: 'flex', gap: 4 }}>
+                    {linha.map((estado, idx2) => {
+                      let background = "#f8fafc";
+                      let color = "#cbd5e1";
+                      let border = "1px solid #f1f5f9";
+                      if (estado === 1) {
+                        background = "#3b82f6";
+                        color = "#fff";
+                        border = "1px solid #2563eb";
+                      } else if (estado === 2) {
+                        background = "#ef4444";
+                        color = "#fff";
+                        border = "1px solid #b91c1c";
+                      }
+                      return (
+                        <span
+                          key={idx2}
+                          style={{
+                            ...styles.celulaCartela,
+                            width: 22,
+                            height: 22,
+                            fontSize: 10,
+                            background,
+                            color,
+                            border,
+                          }}
+                        >
+                          {(idx2 + 1).toString().padStart(2, "0")}
+                        </span>
+                      );
+                    })}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+              <button
+                style={styles.btnExcluir}
+                onClick={() => {
+                  const novos = salvos.filter((_, i2) => i2 !== idx);
+                  setSalvos(novos);
+                  localStorage.setItem("gerador_cartelas", JSON.stringify(novos));
+                }}
+              >
+                Excluir
+              </button>
+            </div>
+          ))}
         </div>
       </div>
     </div>
