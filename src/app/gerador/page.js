@@ -67,12 +67,18 @@ export default function Gerador() {
   const [selecionadas1, setSelecionadas1] = useState(() => Array(COLUNAS).fill().map(() => Array(NUMS.length).fill(0)));
   const [selecionadas2, setSelecionadas2] = useState(() => Array(COLUNAS).fill().map(() => Array(NUMS.length).fill(0)));
   const [fixos1, setFixos1] = useState(() => {
-    const f = localStorage.getItem("gerador_fixos1");
-    return f ? JSON.parse(f) : Array(COLUNAS).fill().map(() => Array(NUMS.length).fill(0));
+    if (typeof window !== "undefined") {
+      const f = localStorage.getItem("gerador_fixos1");
+      return f ? JSON.parse(f) : Array(COLUNAS).fill().map(() => Array(NUMS.length).fill(0));
+    }
+    return Array(COLUNAS).fill().map(() => Array(NUMS.length).fill(0));
   });
   const [fixos2, setFixos2] = useState(() => {
-    const f = localStorage.getItem("gerador_fixos2");
-    return f ? JSON.parse(f) : Array(COLUNAS).fill().map(() => Array(NUMS.length).fill(0));
+    if (typeof window !== "undefined") {
+      const f = localStorage.getItem("gerador_fixos2");
+      return f ? JSON.parse(f) : Array(COLUNAS).fill().map(() => Array(NUMS.length).fill(0));
+    }
+    return Array(COLUNAS).fill().map(() => Array(NUMS.length).fill(0));
   });
   const [salvos, setSalvos] = useState([]);
   const [msg1, setMsg1] = useState("");
