@@ -66,6 +66,14 @@ export default function Gerador() {
   // 0: normal, 1: azul, 2: vermelho
   const [selecionadas1, setSelecionadas1] = useState(() => Array(COLUNAS).fill().map(() => Array(NUMS.length).fill(0)));
   const [selecionadas2, setSelecionadas2] = useState(() => Array(COLUNAS).fill().map(() => Array(NUMS.length).fill(0)));
+  const [fixos1, setFixos1] = useState(() => {
+    const f = localStorage.getItem("gerador_fixos1");
+    return f ? JSON.parse(f) : Array(COLUNAS).fill().map(() => Array(NUMS.length).fill(0));
+  });
+  const [fixos2, setFixos2] = useState(() => {
+    const f = localStorage.getItem("gerador_fixos2");
+    return f ? JSON.parse(f) : Array(COLUNAS).fill().map(() => Array(NUMS.length).fill(0));
+  });
   const [salvos, setSalvos] = useState([]);
   const [msg1, setMsg1] = useState("");
   const [msg2, setMsg2] = useState("");
@@ -74,8 +82,21 @@ export default function Gerador() {
   useEffect(() => {
     const s = localStorage.getItem("gerador_cartelas");
     if (s) setSalvos(JSON.parse(s));
+    // Restaurar fixos ao montar
+    const f1 = localStorage.getItem("gerador_fixos1");
+    if (f1) setFixos1(JSON.parse(f1));
+    const f2 = localStorage.getItem("gerador_fixos2");
+    if (f2) setFixos2(JSON.parse(f2));
     setMontado(true);
   }, []);
+
+  // Atualiza fixos1 sempre que mudar
+  useEffect(() => {
+    localStorage.setItem("gerador_fixos1", JSON.stringify(fixos1));
+  }, [fixos1]);
+  useEffect(() => {
+    localStorage.setItem("gerador_fixos2", JSON.stringify(fixos2));
+  }, [fixos2]);
 
   const alternarNumero1 = (colIdx, num) => {
     setMsg1("");
@@ -86,6 +107,13 @@ export default function Gerador() {
         const idx = num - 1;
         const novoArr = [...arr];
         novoArr[idx] = (novoArr[idx] + 1) % 3;
+        // Atualiza fixos: se ficou vermelho, fixa; se deixou de ser vermelho, desfaz fixo
+        setFixos1(fixos => {
+          const novoFixos = fixos.map((linha, j) =>
+            j === colIdx ? linha.map((v, k) => (k === idx ? (novoArr[idx] === 2 ? 1 : 0) : v)) : linha
+          );
+          return novoFixos;
+        });
         return novoArr;
       });
     });
@@ -99,10 +127,19 @@ export default function Gerador() {
         const idx = num - 1;
         const novoArr = [...arr];
         novoArr[idx] = (novoArr[idx] + 1) % 3;
+        setFixos2(fixos => {
+          const novoFixos = fixos.map((linha, j) =>
+            j === colIdx ? linha.map((v, k) => (k === idx ? (novoArr[idx] === 2 ? 1 : 0) : v)) : linha
+          );
+          return novoFixos;
+        });
         return novoArr;
       });
     });
   };
+
+  // Ao salvar, limpa, mas restaura os fixos (vermelhos)
+  const restaurarFixos = (fixos) => fixos.map(linha => linha.map(v => (v === 1 ? 2 : 0)));
 
   const salvarCartela1 = () => {
     const cartela = selecionadas1.map(arr => [...arr]);
@@ -115,7 +152,7 @@ export default function Gerador() {
     setSalvos(novosSalvos);
     localStorage.setItem("gerador_cartelas", JSON.stringify(novosSalvos));
     setMsg1("Cartela salva!");
-    setSelecionadas1(Array(COLUNAS).fill().map(() => Array(NUMS.length).fill(0)));
+    setSelecionadas1(restaurarFixos(fixos1));
   };
   const salvarCartela2 = () => {
     const cartela = selecionadas2.map(arr => [...arr]);
@@ -128,7 +165,7 @@ export default function Gerador() {
     setSalvos(novosSalvos);
     localStorage.setItem("gerador_cartelas", JSON.stringify(novosSalvos));
     setMsg2("Cartela salva!");
-    setSelecionadas2(Array(COLUNAS).fill().map(() => Array(NUMS.length).fill(0)));
+    setSelecionadas2(restaurarFixos(fixos2));
   };
 
   if (!montado) return null;
