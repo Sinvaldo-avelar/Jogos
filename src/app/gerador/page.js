@@ -8,9 +8,17 @@ const NUMS = Array.from({ length: 10 }, (_, i) => i + 1);
 
 // Componente para o cartão de montar jogo
 function CartaoMontarJogo({ selecionadas, alternarNumero, salvarCartela, msg }) {
+  // Conta quantos números estão selecionados (azul ou vermelho)
+  const totalEscolhidos = selecionadas.reduce(
+    (acc, linha) => acc + linha.filter(v => v === 1 || v === 2).length,
+    0
+  );
   return (
     <div style={styles.cardPrincipal}>
       <h3 style={styles.cardTitle}>MONTAR NOVO JOGO</h3>
+      <div style={{ marginBottom: 8, fontWeight: 600, color: '#0f172a', fontSize: 15 }}>
+        Números escolhidos: {totalEscolhidos}
+      </div>
       <div style={styles.gradeSelecao}>
         {Array.from({ length: COLUNAS }, (_, linhaIdx) => (
           <div key={linhaIdx} style={{ display: 'flex', gap: 4 }}>
@@ -63,6 +71,31 @@ function CartaoMontarJogo({ selecionadas, alternarNumero, salvarCartela, msg }) 
 }
 
 export default function Gerador() {
+    // Estados e funções para edição inline das cartelas salvas
+    const [editandoIdx, setEditandoIdx] = useState(null);
+    const [cartelaEditTemp, setCartelaEditTemp] = useState(null);
+    const alternarNumeroEdit = (linhaIdx, num) => {
+      if (!cartelaEditTemp) return;
+      setCartelaEditTemp(prev => prev.map((linha, i) => {
+        if (i !== linhaIdx) return linha;
+        const idx = num - 1;
+        const novoArr = [...linha];
+        novoArr[idx] = (novoArr[idx] + 1) % 3;
+        return novoArr;
+      }));
+    };
+    const salvarEdicaoCartela = () => {
+      if (editandoIdx === null || !cartelaEditTemp) return;
+      const novos = salvos.map((c, i) => i === editandoIdx ? cartelaEditTemp : c);
+      setSalvos(novos);
+      localStorage.setItem("gerador_cartelas", JSON.stringify(novos));
+      setEditandoIdx(null);
+      setCartelaEditTemp(null);
+    };
+    const cancelarEdicaoCartela = () => {
+      setEditandoIdx(null);
+      setCartelaEditTemp(null);
+    };
   // 0: normal, 1: azul, 2: vermelho
   const [selecionadas1, setSelecionadas1] = useState(() => Array(COLUNAS).fill().map(() => Array(NUMS.length).fill(0)));
   const [selecionadas2, setSelecionadas2] = useState(() => Array(COLUNAS).fill().map(() => Array(NUMS.length).fill(0)));
@@ -176,6 +209,18 @@ export default function Gerador() {
 
   if (!montado) return null;
 
+  // Função para editar cartela salva (carregar para montagem 1)
+  const editarCartela1 = (cartela) => {
+    setSelecionadas1(cartela.map(arr => [...arr]));
+    setMsg1('Cartela carregada para edição!');
+  };
+
+  // Função para editar cartela salva (carregar para montagem 2)
+  const editarCartela2 = (cartela) => {
+    setSelecionadas2(cartela.map(arr => [...arr]));
+    setMsg2('Cartela carregada para edição!');
+  };
+
   return (
     <div style={styles.container}>
       <button
@@ -222,52 +267,93 @@ export default function Gerador() {
           {salvos.map((arr, idx) => (
             <div key={idx} style={styles.jogoSalvoGrade}>
               <div style={styles.badgeNumero}>Jogo #{salvos.length - idx}</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 12 }}>
-                {arr.map((linha, linhaIdx) => (
-                  <div key={linhaIdx} style={{ display: 'flex', gap: 4 }}>
-                    {linha.map((estado, idx2) => {
-                      let background = "#f8fafc";
-                      let color = "#cbd5e1";
-                      let border = "1px solid #f1f5f9";
-                      if (estado === 1) {
-                        background = "#3b82f6";
-                        color = "#fff";
-                        border = "1px solid #2563eb";
-                      } else if (estado === 2) {
-                        background = "#ef4444";
-                        color = "#fff";
-                        border = "1px solid #b91c1c";
-                      }
-                      return (
-                        <span
-                          key={idx2}
-                          style={{
-                            ...styles.celulaCartela,
-                            width: 22,
-                            height: 22,
-                            fontSize: 10,
-                            background,
-                            color,
-                            border,
-                          }}
-                        >
-                          {(idx2 + 1).toString().padStart(2, "0")}
-                        </span>
-                      );
-                    })}
+              {editandoIdx === idx ? (
+                <>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 12 }}>
+                    {cartelaEditTemp.map((linha, linhaIdx) => (
+                      <div key={linhaIdx} style={{ display: 'flex', gap: 4 }}>
+                        {linha.map((estado, idx2) => {
+                          let background = "#fff";
+                          let color = "#334155";
+                          let border = "1px solid #cbd5e1";
+                          if (estado === 1) {
+                            background = "#3b82f6";
+                            color = "#fff";
+                            border = "2px solid #2563eb";
+                          } else if (estado === 2) {
+                            background = "#ef4444";
+                            color = "#fff";
+                            border = "2px solid #b91c1c";
+                          }
+                          return (
+                            <button
+                              key={idx2}
+                              style={{ ...styles.celulaCartela, width: 22, height: 22, fontSize: 10, background, color, border, cursor: 'pointer' }}
+                              onClick={() => alternarNumeroEdit(linhaIdx, idx2 + 1)}
+                            >
+                              {(idx2 + 1).toString().padStart(2, "0")}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-              <button
-                style={styles.btnExcluir}
-                onClick={() => {
-                  const novos = salvos.filter((_, i2) => i2 !== idx);
-                  setSalvos(novos);
-                  localStorage.setItem("gerador_cartelas", JSON.stringify(novos));
-                }}
-              >
-                Excluir
-              </button>
+                  <div style={{ display: 'flex', gap: 8, width: '100%' }}>
+                    <button style={{ ...styles.btnSalvar, background: '#16a34a', fontSize: 11, padding: 6 }} onClick={salvarEdicaoCartela}>Salvar</button>
+                    <button style={{ ...styles.btnExcluir, fontSize: 11, padding: 6 }} onClick={cancelarEdicaoCartela}>Cancelar</button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 12 }}>
+                    {arr.map((linha, linhaIdx) => (
+                      <div key={linhaIdx} style={{ display: 'flex', gap: 4 }}>
+                        {linha.map((estado, idx2) => {
+                          let background = "#f8fafc";
+                          let color = "#cbd5e1";
+                          let border = "1px solid #f1f5f9";
+                          if (estado === 1) {
+                            background = "#3b82f6";
+                            color = "#fff";
+                            border = "1px solid #2563eb";
+                          } else if (estado === 2) {
+                            background = "#ef4444";
+                            color = "#fff";
+                            border = "1px solid #b91c1c";
+                          }
+                          return (
+                            <span
+                              key={idx2}
+                              style={{ ...styles.celulaCartela, width: 22, height: 22, fontSize: 10, background, color, border }}
+                            >
+                              {(idx2 + 1).toString().padStart(2, "0")}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, width: '100%' }}>
+                    <button
+                      style={{ ...styles.btnExcluir, background: '#e0e7ef', color: '#2563eb', border: 'none', fontSize: 11 }}
+                      onClick={() => { setEditandoIdx(idx); setCartelaEditTemp(arr.map(l => [...l])); }}
+                      title="Editar inline"
+                    >
+                      Editar
+                    </button>
+                    <button
+                      style={styles.btnExcluir}
+                      onClick={() => {
+                        const novos = salvos.filter((_, i2) => i2 !== idx);
+                        setSalvos(novos);
+                        localStorage.setItem("gerador_cartelas", JSON.stringify(novos));
+                      }}
+                    >
+                      Excluir
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           ))}
         </div>
