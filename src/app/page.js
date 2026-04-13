@@ -27,6 +27,10 @@ export default function MenuPrincipal() {
           <h2>💾 JOGOS SALVOS</h2>
           <p>Veja e gerencie todos os seus jogos salvos</p>
         </Link>
+        <Link href="/tatico" style={{...styles.card, borderLeft: '8px solid #6366f1'}}>
+          <h2>🎯 TÁTICO</h2>
+          <p>Cartão tático de 50 linhas</p>
+        </Link>
       </div>
     </div>
   );
