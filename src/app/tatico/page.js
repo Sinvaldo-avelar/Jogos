@@ -4,7 +4,7 @@ import Link from "next/link";
 
 export default function TaticoCartao() {
 	// 50 linhas x 10 colunas = 500 blocos
-	const totalRows = 50;
+	const totalRows = 150;
 	const totalCols = 10;
 	// 0: normal, 1: azul, 2: vermelho
 	const [states, setStates] = useState(Array(totalRows * totalCols).fill(0));
