@@ -7,21 +7,21 @@ const NUMS = Array.from({ length: 10 }, (_, i) => i + 1);
 
 
 // Componente para o cartão de montar jogo
-function CartaoMontarJogo({ selecionadas, alternarNumero, salvarCartela, msg }) {
+function CartaoMontarJogo({ selecionadas, alternarNumero, salvarCartela, msg, cardPrincipalStyle, celulaCartelaStyle, gradeSelecaoStyle }) {
   // Conta quantos números estão selecionados (azul ou vermelho)
   const totalEscolhidos = selecionadas.reduce(
     (acc, linha) => acc + linha.filter(v => v === 1 || v === 2).length,
     0
   );
   return (
-    <div style={styles.cardPrincipal}>
+    <div style={cardPrincipalStyle || styles.cardPrincipal}>
       <h3 style={styles.cardTitle}>MONTAR NOVO JOGO</h3>
       <div style={{ marginBottom: 8, fontWeight: 600, color: '#0f172a', fontSize: 15 }}>
         Números escolhidos: {totalEscolhidos}
       </div>
-      <div style={styles.gradeSelecao}>
+      <div style={gradeSelecaoStyle || styles.gradeSelecao}>
         {Array.from({ length: COLUNAS }, (_, linhaIdx) => (
-          <div key={linhaIdx} style={{ display: 'flex', gap: 4 }}>
+          <div key={linhaIdx} style={{ display: 'flex', gap: (celulaCartelaStyle && celulaCartelaStyle.width === 22) ? 2 : 4 }}>
             {NUMS.map(num => {
               const estado = selecionadas[linhaIdx][num - 1];
               let background = "#fff";
@@ -40,7 +40,7 @@ function CartaoMontarJogo({ selecionadas, alternarNumero, salvarCartela, msg }) 
                 <button
                   key={num}
                   style={{
-                    ...styles.celulaCartela,
+                    ...(celulaCartelaStyle || styles.celulaCartela),
                     background,
                     color,
                     border,
@@ -207,6 +207,17 @@ export default function Gerador() {
     setSelecionadas2(restaurarFixos(fixos2));
   };
 
+  // Responsividade: muda layout dos cartões para coluna em telas pequenas
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 700);
+    if (typeof window !== 'undefined') {
+      handleResize();
+      window.addEventListener('resize', handleResize);
+      return () => window.removeEventListener('resize', handleResize);
+    }
+  }, []);
+
   if (!montado) return null;
 
   // Função para editar cartela salva (carregar para montagem 1)
@@ -221,8 +232,38 @@ export default function Gerador() {
     setMsg2('Cartela carregada para edição!');
   };
 
+  // Estilos responsivos para cartões e botões
+  const cardPrincipalStyle = {
+    ...styles.cardPrincipal,
+    maxWidth: isMobile ? '100%' : 420,
+    width: isMobile ? '100%' : undefined,
+    padding: isMobile ? 10 : 24,
+    margin: isMobile ? '0 auto' : undefined,
+    boxSizing: 'border-box',
+  };
+  const celulaCartelaStyle = {
+    ...styles.celulaCartela,
+    width: isMobile ? 22 : 32,
+    height: isMobile ? 22 : 32,
+    fontSize: isMobile ? 11 : 14,
+    borderRadius: 6,
+    margin: 0,
+    padding: 0,
+  };
+  const gradeSelecaoStyle = {
+    ...styles.gradeSelecao,
+    gap: isMobile ? 2 : 8,
+    marginBottom: isMobile ? 6 : 16,
+  };
+  const jogoSalvoGradeStyle = {
+    ...styles.jogoSalvoGrade,
+    width: isMobile ? '100%' : 'fit-content',
+    minWidth: isMobile ? 0 : undefined,
+    padding: isMobile ? 6 : 12,
+  };
+
   return (
-    <div style={styles.container}>
+    <div style={{ ...styles.container, padding: isMobile ? '8px 2px' : '40px 20px' }}>
       <button
         style={{
           marginBottom: 18,
@@ -246,18 +287,34 @@ export default function Gerador() {
       </button>
       <h1 style={styles.title}>GERADOR DE CARTELA LOTOMANIA</h1>
 
-      <div style={{ display: 'flex', gap: 32, marginBottom: 32, justifyContent: 'center' }}>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: isMobile ? 'column' : 'row',
+          gap: isMobile ? 6 : 32,
+          marginBottom: 24,
+          justifyContent: 'center',
+          alignItems: isMobile ? 'stretch' : 'center',
+          width: '100%',
+        }}
+      >
         <CartaoMontarJogo
           selecionadas={selecionadas1}
           alternarNumero={alternarNumero1}
           salvarCartela={salvarCartela1}
           msg={msg1}
+          cardPrincipalStyle={cardPrincipalStyle}
+          celulaCartelaStyle={celulaCartelaStyle}
+          gradeSelecaoStyle={gradeSelecaoStyle}
         />
         <CartaoMontarJogo
           selecionadas={selecionadas2}
           alternarNumero={alternarNumero2}
           salvarCartela={salvarCartela2}
           msg={msg2}
+          cardPrincipalStyle={cardPrincipalStyle}
+          celulaCartelaStyle={celulaCartelaStyle}
+          gradeSelecaoStyle={gradeSelecaoStyle}
         />
       </div>
 
@@ -265,7 +322,7 @@ export default function Gerador() {
         <h3 style={styles.cardTitle}>CARTELAS SALVAS ({salvos.length})</h3>
         <div style={styles.gridSalvos}>
           {salvos.map((arr, idx) => (
-            <div key={idx} style={styles.jogoSalvoGrade}>
+            <div key={idx} style={jogoSalvoGradeStyle}>
               <div style={styles.badgeNumero}>Jogo #{salvos.length - idx}</div>
               {editandoIdx === idx ? (
                 <>
