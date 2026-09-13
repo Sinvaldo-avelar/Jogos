@@ -23,6 +23,7 @@ function CartaoMontarJogo({ selecionadas, alternarNumero, salvarCartela, msg, ca
         {Array.from({ length: COLUNAS }, (_, linhaIdx) => (
           <div key={linhaIdx} style={{ display: 'flex', gap: (celulaCartelaStyle && celulaCartelaStyle.width === 22) ? 2 : 4 }}>
             {NUMS.map(num => {
+              const numero = linhaIdx * NUMS.length + num;
               const estado = selecionadas[linhaIdx][num - 1];
               let background = "#fff";
               let color = "#334155";
@@ -48,7 +49,7 @@ function CartaoMontarJogo({ selecionadas, alternarNumero, salvarCartela, msg, ca
                   }}
                   onClick={() => alternarNumero(linhaIdx, num)}
                 >
-                  {num.toString().padStart(2, "0")}
+                  {(numero === 100 ? 0 : numero).toString().padStart(2, "0")}
                 </button>
               );
             })}
@@ -330,6 +331,7 @@ export default function Gerador() {
                     {cartelaEditTemp.map((linha, linhaIdx) => (
                       <div key={linhaIdx} style={{ display: 'flex', gap: 4 }}>
                         {linha.map((estado, idx2) => {
+                          const numero = linhaIdx * NUMS.length + idx2 + 1;
                           let background = "#fff";
                           let color = "#334155";
                           let border = "1px solid #cbd5e1";
@@ -348,7 +350,7 @@ export default function Gerador() {
                               style={{ ...styles.celulaCartela, width: 22, height: 22, fontSize: 10, background, color, border, cursor: 'pointer' }}
                               onClick={() => alternarNumeroEdit(linhaIdx, idx2 + 1)}
                             >
-                              {(idx2 + 1).toString().padStart(2, "0")}
+                              {(numero === 100 ? 0 : numero).toString().padStart(2, "0")}
                             </button>
                           );
                         })}
@@ -366,6 +368,7 @@ export default function Gerador() {
                     {arr.map((linha, linhaIdx) => (
                       <div key={linhaIdx} style={{ display: 'flex', gap: 4 }}>
                         {linha.map((estado, idx2) => {
+                          const numero = linhaIdx * NUMS.length + idx2 + 1;
                           let background = "#f8fafc";
                           let color = "#cbd5e1";
                           let border = "1px solid #f1f5f9";
@@ -383,7 +386,7 @@ export default function Gerador() {
                               key={idx2}
                               style={{ ...styles.celulaCartela, width: 22, height: 22, fontSize: 10, background, color, border }}
                             >
-                              {(idx2 + 1).toString().padStart(2, "0")}
+                              {(numero === 100 ? 0 : numero).toString().padStart(2, "0")}
                             </span>
                           );
                         })}
