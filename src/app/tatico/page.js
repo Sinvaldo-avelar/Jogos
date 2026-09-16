@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from "react";
 
-// Configurações da nova grade: 9 colunas por 7 linhas
-const COLUNAS_QTD = 9; 
-const LINHAS_QTD = 7;
+// Grade com 5 números por linha: 01 a 99 e, por último, 00.
+const COLUNAS_QTD = 5;
+const LINHAS_QTD = 20;
 const NUMS = Array.from({ length: COLUNAS_QTD }, (_, i) => i + 1);
 
 // Componente para o cartão de montar jogo
@@ -25,6 +25,7 @@ function CartaoMontarJogo({ selecionadas, alternarNumero, salvarCartela, msg, ca
           <div key={linhaIdx} style={{ display: 'flex', gap: 4 }}>
             {NUMS.map(num => {
               const estado = selecionadas[linhaIdx][num - 1];
+              const numero = linhaIdx * COLUNAS_QTD + num;
               let background = "#fff";
               let color = "#334155";
               let border = "1px solid #cbd5e1";
@@ -51,7 +52,7 @@ function CartaoMontarJogo({ selecionadas, alternarNumero, salvarCartela, msg, ca
                   }}
                   onClick={() => alternarNumero(linhaIdx, num)}
                 >
-                  {num.toString().padStart(2, "0")}
+                  {(numero === 100 ? 0 : numero).toString().padStart(2, "0")}
                 </button>
               );
             })}
@@ -87,13 +88,13 @@ export default function Gerador() {
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
-    const s = localStorage.getItem("gerador_cartelas_9x7");
+    const s = localStorage.getItem("gerador_cartelas_10x5");
     if (s) setSalvos(JSON.parse(s));
     
-    const f1 = localStorage.getItem("gerador_fixos1_9x7");
+    const f1 = localStorage.getItem("gerador_fixos1_10x5");
     if (f1) setFixos1(JSON.parse(f1));
     
-    const f2 = localStorage.getItem("gerador_fixos2_9x7");
+    const f2 = localStorage.getItem("gerador_fixos2_10x10");
     if (f2) setFixos2(JSON.parse(f2));
     
     const handleResize = () => setIsMobile(window.innerWidth < 700);
@@ -105,8 +106,8 @@ export default function Gerador() {
 
   useEffect(() => {
     if (montado) {
-      localStorage.setItem("gerador_fixos1_9x7", JSON.stringify(fixos1));
-      localStorage.setItem("gerador_fixos2_9x7", JSON.stringify(fixos2));
+      localStorage.setItem("gerador_fixos1_20x5", JSON.stringify(fixos1));
+      localStorage.setItem("gerador_fixos2_20x5", JSON.stringify(fixos2));
     }
   }, [fixos1, fixos2, montado]);
 
@@ -154,7 +155,7 @@ export default function Gerador() {
       <button style={styles.btnVoltar} onClick={() => window.location.href = '/'}>
         ⬅ Voltar para Painel
       </button>
-      <h1 style={styles.title}>GERADOR 9x7 LOTOMANIA</h1>
+      <h1 style={styles.title}>GERADOR TÁTICO 5x20</h1>
 
       <div style={{ 
         display: 'flex', 
@@ -190,6 +191,7 @@ export default function Gerador() {
                 {(editandoIdx === idx ? cartelaEditTemp : arr).map((linha, lIdx) => (
                   <div key={lIdx} style={{ display: 'flex', gap: 3 }}>
                     {linha.map((estado, nIdx) => {
+                      const numero = lIdx * COLUNAS_QTD + nIdx + 1;
                       let bg = estado === 1 ? "#3b82f6" : estado === 2 ? "#ef4444" : "#f8fafc";
                       return (
                         <button 
@@ -203,7 +205,7 @@ export default function Gerador() {
                             cursor: editandoIdx === idx ? 'pointer' : 'default'
                           }}
                         >
-                          {(nIdx + 1).toString().padStart(2, "0")}
+                          {(numero === 100 ? 0 : numero).toString().padStart(2, "0")}
                         </button>
                       );
                     })}
