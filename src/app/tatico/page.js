@@ -76,15 +76,21 @@ export default function Gerador() {
   const [editandoIdx, setEditandoIdx] = useState(null);
   const [cartelaEditTemp, setCartelaEditTemp] = useState(null);
   
-  // Estados das duas áreas de montagem
+  // Estados das quatro áreas de montagem
   const [selecionadas1, setSelecionadas1] = useState(() => Array(LINHAS_QTD).fill().map(() => Array(COLUNAS_QTD).fill(0)));
   const [selecionadas2, setSelecionadas2] = useState(() => Array(LINHAS_QTD).fill().map(() => Array(COLUNAS_QTD).fill(0)));
+  const [selecionadas3, setSelecionadas3] = useState(() => Array(LINHAS_QTD).fill().map(() => Array(COLUNAS_QTD).fill(0)));
+  const [selecionadas4, setSelecionadas4] = useState(() => Array(LINHAS_QTD).fill().map(() => Array(COLUNAS_QTD).fill(0)));
   
   const [fixos1, setFixos1] = useState(() => Array(LINHAS_QTD).fill().map(() => Array(COLUNAS_QTD).fill(0)));
   const [fixos2, setFixos2] = useState(() => Array(LINHAS_QTD).fill().map(() => Array(COLUNAS_QTD).fill(0)));
+  const [fixos3, setFixos3] = useState(() => Array(LINHAS_QTD).fill().map(() => Array(COLUNAS_QTD).fill(0)));
+  const [fixos4, setFixos4] = useState(() => Array(LINHAS_QTD).fill().map(() => Array(COLUNAS_QTD).fill(0)));
 
   const [msg1, setMsg1] = useState("");
   const [msg2, setMsg2] = useState("");
+  const [msg3, setMsg3] = useState("");
+  const [msg4, setMsg4] = useState("");
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -96,6 +102,12 @@ export default function Gerador() {
     
     const f2 = localStorage.getItem("gerador_fixos2_10x10");
     if (f2) setFixos2(JSON.parse(f2));
+
+    const f3 = localStorage.getItem("gerador_fixos3_20x5");
+    if (f3) setFixos3(JSON.parse(f3));
+
+    const f4 = localStorage.getItem("gerador_fixos4_20x5");
+    if (f4) setFixos4(JSON.parse(f4));
     
     const handleResize = () => setIsMobile(window.innerWidth < 700);
     handleResize();
@@ -108,8 +120,10 @@ export default function Gerador() {
     if (montado) {
       localStorage.setItem("gerador_fixos1_20x5", JSON.stringify(fixos1));
       localStorage.setItem("gerador_fixos2_20x5", JSON.stringify(fixos2));
+      localStorage.setItem("gerador_fixos3_20x5", JSON.stringify(fixos3));
+      localStorage.setItem("gerador_fixos4_20x5", JSON.stringify(fixos4));
     }
-  }, [fixos1, fixos2, montado]);
+  }, [fixos1, fixos2, fixos3, fixos4, montado]);
 
   const alternarNumeroGenerico = (linhaIdx, num, setSelecionadas, setFixos) => {
     const idx = num - 1;
@@ -157,11 +171,12 @@ export default function Gerador() {
       </button>
       <h1 style={styles.title}>GERADOR TÁTICO 5x20</h1>
 
-      <div style={{ 
-        display: 'flex', 
-        flexDirection: isMobile ? 'column' : 'row', 
-        gap: 20, 
-        justifyContent: 'center',
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, minmax(0, 1fr))',
+        gap: isMobile ? 14 : 8,
+        maxWidth: 900,
+        margin: '0 auto',
         marginBottom: 30 
       }}>
         <CartaoMontarJogo 
@@ -169,14 +184,28 @@ export default function Gerador() {
           alternarNumero={(l, n) => { setMsg1(""); alternarNumeroGenerico(l, n, setSelecionadas1, setFixos1); }}
           salvarCartela={() => salvarCartelaGenerica(selecionadas1, fixos1, setSelecionadas1, setMsg1)}
           msg={msg1}
-          celulaCartelaStyle={{ ...styles.celulaCartela, width: isMobile ? 26 : 32, height: isMobile ? 26 : 32 }}
+          celulaCartelaStyle={{ ...styles.celulaCartela, width: isMobile ? 26 : 24, height: isMobile ? 26 : 24, fontSize: isMobile ? 13 : 10 }}
         />
         <CartaoMontarJogo 
           selecionadas={selecionadas2} 
           alternarNumero={(l, n) => { setMsg2(""); alternarNumeroGenerico(l, n, setSelecionadas2, setFixos2); }}
           salvarCartela={() => salvarCartelaGenerica(selecionadas2, fixos2, setSelecionadas2, setMsg2)}
           msg={msg2}
-          celulaCartelaStyle={{ ...styles.celulaCartela, width: isMobile ? 26 : 32, height: isMobile ? 26 : 32 }}
+          celulaCartelaStyle={{ ...styles.celulaCartela, width: isMobile ? 26 : 24, height: isMobile ? 26 : 24, fontSize: isMobile ? 13 : 10 }}
+        />
+        <CartaoMontarJogo
+          selecionadas={selecionadas3}
+          alternarNumero={(l, n) => { setMsg3(""); alternarNumeroGenerico(l, n, setSelecionadas3, setFixos3); }}
+          salvarCartela={() => salvarCartelaGenerica(selecionadas3, fixos3, setSelecionadas3, setMsg3)}
+          msg={msg3}
+          celulaCartelaStyle={{ ...styles.celulaCartela, width: isMobile ? 26 : 24, height: isMobile ? 26 : 24, fontSize: isMobile ? 13 : 10 }}
+        />
+        <CartaoMontarJogo
+          selecionadas={selecionadas4}
+          alternarNumero={(l, n) => { setMsg4(""); alternarNumeroGenerico(l, n, setSelecionadas4, setFixos4); }}
+          salvarCartela={() => salvarCartelaGenerica(selecionadas4, fixos4, setSelecionadas4, setMsg4)}
+          msg={msg4}
+          celulaCartelaStyle={{ ...styles.celulaCartela, width: isMobile ? 26 : 24, height: isMobile ? 26 : 24, fontSize: isMobile ? 13 : 10 }}
         />
       </div>
 
