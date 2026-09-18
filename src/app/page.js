@@ -31,6 +31,10 @@ export default function MenuPrincipal() {
           <h2>🎯 TÁTICO</h2>
           <p>Cartão tático de 50 linhas</p>
         </Link>
+        <Link href="/estrategico" style={{...styles.card, borderLeft: '8px solid #0ea5e9'}}>
+          <h2>📊 ESTRATÉGICO</h2>
+          <p>Cartão em uma fila de 01 a 99 e 00</p>
+        </Link>
       </div>
     </div>
   );
