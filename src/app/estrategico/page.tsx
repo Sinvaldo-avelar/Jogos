@@ -45,7 +45,6 @@ function LinhaNumeros({
 }
 
 export default function Estrategico() {
-  // Inicializa com 10 cartelas (você pode alterar para o número que quiser, ex: 15, 20)
   const QUANTIDADE_INICIAL = 10;
   const [cartelas, setCartelas] = useState<number[][]>(() =>
     Array.from({ length: QUANTIDADE_INICIAL }, () => Array(TOTAL_NUMEROS).fill(ESTADO_VAZIO))
@@ -59,6 +58,14 @@ export default function Estrategico() {
         nova[numIdx] = (nova[numIdx] + 1) % 3; // 0 -> 1 (azul) -> 2 (vermelho) -> 0
         return nova;
       })
+    );
+  };
+
+  const limparCartelaIndividual = (cartelaIdx: number) => {
+    setCartelas((anteriores) =>
+      anteriores.map((cartela, cIdx) =>
+        cIdx === cartelaIdx ? Array(TOTAL_NUMEROS).fill(ESTADO_VAZIO) : cartela
+      )
     );
   };
 
@@ -89,24 +96,58 @@ export default function Estrategico() {
           <button type="button" style={styles.btnAcao} onClick={adicionarCartela}>
             + Adicionar Cartela
           </button>
-          <button type="button" style={{ ...styles.btnAcao, background: '#fee2e2', color: '#b91c1c' }} onClick={limparTodas}>
+          <button
+            type="button"
+            style={{ ...styles.btnAcao, background: '#fee2e2', color: '#b91c1c' }}
+            onClick={limparTodas}
+          >
             Limpar Todas
           </button>
         </div>
       </header>
 
       <div style={styles.listaCartelas}>
-        {cartelas.map((cartela, idx) => (
-          <div key={idx} style={styles.cartelaBox}>
-            <span style={styles.badgeNumero}>#{String(idx + 1).padStart(2, '0')}</span>
-            <div style={styles.gradeContainer}>
-              <LinhaNumeros
-                valores={cartela}
-                aoAlternar={(numIdx) => alternarNumeroCartela(idx, numIdx)}
-              />
+        {cartelas.map((cartela, idx) => {
+          // Conta quantos números foram marcados nesta cartela específica
+          const totalMarcados = cartela.filter((estado) => estado > 0).length;
+
+          return (
+            <div key={idx} style={styles.cartelaBox}>
+              {/* Painel lateral compacto com o número da cartela e o contador */}
+              <div style={styles.infoCartela}>
+                <span style={styles.badgeNumero}>#{String(idx + 1).padStart(2, '0')}</span>
+                <span
+                  style={{
+                    ...styles.badgeContador,
+                    background: totalMarcados > 0 ? '#dbeafe' : '#f1f5f9',
+                    color: totalMarcados > 0 ? '#1d4ed8' : '#64748b',
+                    borderColor: totalMarcados > 0 ? '#93c5fd' : '#e2e8f0',
+                  }}
+                  title="Total de números marcados nesta cartela"
+                >
+                  {totalMarcados}
+                </span>
+                {totalMarcados > 0 && (
+                  <button
+                    type="button"
+                    style={styles.btnLimparCartela}
+                    title="Limpar apenas esta cartela"
+                    onClick={() => limparCartelaIndividual(idx)}
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+
+              <div style={styles.gradeContainer}>
+                <LinhaNumeros
+                  valores={cartela}
+                  aoAlternar={(numIdx) => alternarNumeroCartela(idx, numIdx)}
+                />
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </main>
   );
@@ -120,7 +161,7 @@ const styles = {
     fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
   },
   topo: {
-    maxWidth: 1300,
+    maxWidth: 1350,
     margin: '0 auto 12px auto',
     display: 'flex',
     justifyContent: 'space-between',
@@ -158,11 +199,11 @@ const styles = {
     cursor: 'pointer',
   },
   listaCartelas: {
-    maxWidth: 1300,
+    maxWidth: 1350,
     margin: '0 auto',
     display: 'flex',
     flexDirection: 'column' as const,
-    gap: 6, // Espaçamento bem fino entre as cartelas
+    gap: 6,
   },
   cartelaBox: {
     background: '#ffffff',
@@ -171,18 +212,44 @@ const styles = {
     border: '1px solid #e2e8f0',
     display: 'flex',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
     boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+  },
+  infoCartela: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    minWidth: 78,
+    flexShrink: 0,
   },
   badgeNumero: {
     fontSize: 12,
     fontWeight: 900,
-    color: '#64748b',
-    minWidth: 28,
+    color: '#475569',
+  },
+  badgeContador: {
+    fontSize: 11,
+    fontWeight: 800,
+    padding: '2px 6px',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderStyle: 'solid',
+    minWidth: 24,
+    textAlign: 'center' as const,
+  },
+  btnLimparCartela: {
+    background: 'transparent',
+    border: 'none',
+    color: '#94a3b8',
+    fontSize: 14,
+    cursor: 'pointer',
+    padding: '0 2px',
+    lineHeight: 1,
+    fontWeight: 700,
   },
   gradeContainer: {
     flex: 1,
-    overflowX: 'auto' as const, // Permite rolagem horizontal suave se a tela for muito estreita
+    overflowX: 'auto' as const,
   },
   linhaNumeros: {
     display: 'grid',
