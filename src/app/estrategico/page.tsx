@@ -7,13 +7,16 @@ const ESTADO_VAZIO = 0;
 const ESTADO_SELECIONADO = 1;
 const ESTADO_FIXO = 2;
 
-// Paleta de cores para diferenciar as réguas criadas
+// Chaves de armazenamento local
+const STORAGE_CARTELAS_KEY = 'estrategico_cartelas_ativas';
+const STORAGE_REGUAS_KEY = 'estrategico_reguas_ativas';
+
 const CORES_REGUA = [
-  { bg: 'rgba(239, 68, 68, 0.35)', borda: '#b91c1c', texto: '#7f1d1d', puxador: '#991b1b' }, // Vermelho
-  { bg: 'rgba(234, 179, 8, 0.35)', borda: '#ca8a04', texto: '#713f12', puxador: '#a16207' },  // Amarelo
-  { bg: 'rgba(34, 197, 94, 0.35)', borda: '#16a34a', texto: '#14532d', puxador: '#15803d' },  // Verde
-  { bg: 'rgba(168, 85, 247, 0.35)', borda: '#9333ea', texto: '#581c87', puxador: '#7e22ce' }, // Roxo
-  { bg: 'rgba(249, 115, 22, 0.35)', borda: '#ea580c', texto: '#7c2d12', puxador: '#c2410c' }, // Laranja
+  { bg: 'rgba(239, 68, 68, 0.35)', borda: '#b91c1c', texto: '#7f1d1d', puxador: '#991b1b' },
+  { bg: 'rgba(234, 179, 8, 0.35)', borda: '#ca8a04', texto: '#713f12', puxador: '#a16207' },
+  { bg: 'rgba(34, 197, 94, 0.35)', borda: '#16a34a', texto: '#14532d', puxador: '#15803d' },
+  { bg: 'rgba(168, 85, 247, 0.35)', borda: '#9333ea', texto: '#581c87', puxador: '#7e22ce' },
+  { bg: 'rgba(249, 115, 22, 0.35)', borda: '#ea580c', texto: '#7c2d12', puxador: '#c2410c' },
 ];
 
 interface ReguaItem {
@@ -63,12 +66,49 @@ function LinhaNumeros({
 
 export default function Estrategico() {
   const QUANTIDADE_INICIAL = 10;
-  const [cartelas, setCartelas] = useState<number[][]>(() =>
-    Array.from({ length: QUANTIDADE_INICIAL }, () => Array(TOTAL_NUMEROS).fill(ESTADO_VAZIO))
-  );
 
-  // Lista de réguas ativas
+  const [carregado, setCarregado] = useState(false);
+  const [cartelas, setCartelas] = useState<number[][]>([]);
   const [reguas, setReguas] = useState<ReguaItem[]>([]);
+
+  // Carrega os dados gravados assim que a página abre
+  useEffect(() => {
+    try {
+      const cartelasSalvas = localStorage.getItem(STORAGE_CARTELAS_KEY);
+      if (cartelasSalvas) {
+        setCartelas(JSON.parse(cartelasSalvas));
+      } else {
+        setCartelas(
+          Array.from({ length: QUANTIDADE_INICIAL }, () => Array(TOTAL_NUMEROS).fill(ESTADO_VAZIO))
+        );
+      }
+
+      const reguasSalvas = localStorage.getItem(STORAGE_REGUAS_KEY);
+      if (reguasSalvas) {
+        setReguas(JSON.parse(reguasSalvas));
+      }
+    } catch {
+      setCartelas(
+        Array.from({ length: QUANTIDADE_INICIAL }, () => Array(TOTAL_NUMEROS).fill(ESTADO_VAZIO))
+      );
+    } finally {
+      setCarregado(true);
+    }
+  }, []);
+
+  // Grava automaticamente no localStorage sempre que houver alterações nas cartelas
+  useEffect(() => {
+    if (carregado) {
+      localStorage.setItem(STORAGE_CARTELAS_KEY, JSON.stringify(cartelas));
+    }
+  }, [cartelas, carregado]);
+
+  // Grava automaticamente as réguas
+  useEffect(() => {
+    if (carregado) {
+      localStorage.setItem(STORAGE_REGUAS_KEY, JSON.stringify(reguas));
+    }
+  }, [reguas, carregado]);
 
   const arrastoRef = useRef<{
     id: number | null;
@@ -189,13 +229,16 @@ export default function Estrategico() {
 
   const limparTodas = () => {
     if (confirm('Deseja desmarcar todos os números de todas as cartelas?')) {
-      setCartelas((anteriores) => anteriores.map(() => Array(TOTAL_NUMEROS).fill(ESTADO_VAZIO)));
+      const reset = cartelas.map(() => Array(TOTAL_NUMEROS).fill(ESTADO_VAZIO));
+      setCartelas(reset);
+      localStorage.setItem(STORAGE_CARTELAS_KEY, JSON.stringify(reset));
     }
   };
 
+  if (!carregado) return null;
+
   return (
     <main style={styles.container}>
-      {/* Réguas Multi-Instância */}
       {reguas.map((regua, index) => {
         const cor = CORES_REGUA[regua.corIdx];
         return (
@@ -367,7 +410,7 @@ const styles = {
   },
   puxadorRedimensionar: {
     width: 12,
-    height: 20,
+    height: 16,
     borderRadius: 3,
     cursor: 'ew-resize',
   },
