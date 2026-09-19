@@ -1,29 +1,32 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
 const TOTAL_NUMEROS = 100;
 const ESTADO_VAZIO = 0;
 const ESTADO_SELECIONADO = 1;
 const ESTADO_FIXO = 2;
 
-// Chaves de armazenamento local
 const STORAGE_CARTELAS_KEY = 'estrategico_cartelas_ativas';
-const STORAGE_REGUAS_KEY = 'estrategico_reguas_ativas';
+const STORAGE_FORMAS_KEY = 'estrategico_formas_ativas';
 
-const CORES_REGUA = [
-  { bg: 'rgba(239, 68, 68, 0.35)', borda: '#b91c1c', texto: '#7f1d1d', puxador: '#991b1b' },
-  { bg: 'rgba(234, 179, 8, 0.35)', borda: '#ca8a04', texto: '#713f12', puxador: '#a16207' },
-  { bg: 'rgba(34, 197, 94, 0.35)', borda: '#16a34a', texto: '#14532d', puxador: '#15803d' },
-  { bg: 'rgba(168, 85, 247, 0.35)', borda: '#9333ea', texto: '#581c87', puxador: '#7e22ce' },
-  { bg: 'rgba(249, 115, 22, 0.35)', borda: '#ea580c', texto: '#7c2d12', puxador: '#c2410c' },
+const CORES_FORMA = [
+  { fill: 'rgba(239, 68, 68, 0.32)', stroke: '#b91c1c', ponto: '#dc2626' }, // Vermelho
+  { fill: 'rgba(234, 179, 8, 0.32)', stroke: '#ca8a04', ponto: '#eab308' },  // Amarelo
+  { fill: 'rgba(34, 197, 94, 0.32)', stroke: '#16a34a', ponto: '#22c55e' },  // Verde
+  { fill: 'rgba(168, 85, 247, 0.32)', stroke: '#9333ea', ponto: '#a855f7' }, // Roxo
+  { fill: 'rgba(249, 115, 22, 0.32)', stroke: '#ea580c', ponto: '#f97316' }, // Laranja
+  { fill: 'rgba(6, 182, 212, 0.32)', stroke: '#0891b2', ponto: '#06b6d4' },  // Ciano
 ];
 
-interface ReguaItem {
-  id: number;
+interface Ponto {
   x: number;
   y: number;
-  largura: number;
+}
+
+interface FormaItem {
+  id: number;
+  pontos: Ponto[];
   corIdx: number;
 }
 
@@ -69,9 +72,9 @@ export default function Estrategico() {
 
   const [carregado, setCarregado] = useState(false);
   const [cartelas, setCartelas] = useState<number[][]>([]);
-  const [reguas, setReguas] = useState<ReguaItem[]>([]);
+  const [formas, setFormas] = useState<FormaItem[]>([]);
 
-  // Carrega os dados gravados assim que a página abre
+  // Carregar dados salvos localmente
   useEffect(() => {
     try {
       const cartelasSalvas = localStorage.getItem(STORAGE_CARTELAS_KEY);
@@ -83,9 +86,9 @@ export default function Estrategico() {
         );
       }
 
-      const reguasSalvas = localStorage.getItem(STORAGE_REGUAS_KEY);
-      if (reguasSalvas) {
-        setReguas(JSON.parse(reguasSalvas));
+      const formasSalvas = localStorage.getItem(STORAGE_FORMAS_KEY);
+      if (formasSalvas) {
+        setFormas(JSON.parse(formasSalvas));
       }
     } catch {
       setCartelas(
@@ -96,63 +99,71 @@ export default function Estrategico() {
     }
   }, []);
 
-  // Grava automaticamente no localStorage sempre que houver alterações nas cartelas
+  // Salvar alterações automaticamente
   useEffect(() => {
     if (carregado) {
       localStorage.setItem(STORAGE_CARTELAS_KEY, JSON.stringify(cartelas));
     }
   }, [cartelas, carregado]);
 
-  // Grava automaticamente as réguas
   useEffect(() => {
     if (carregado) {
-      localStorage.setItem(STORAGE_REGUAS_KEY, JSON.stringify(reguas));
+      localStorage.setItem(STORAGE_FORMAS_KEY, JSON.stringify(formas));
     }
-  }, [reguas, carregado]);
+  }, [formas, carregado]);
 
+  // Gestão de arrasto dinâmico pelo mouse (cada ponta ou o corpo todo)
   const arrastoRef = useRef<{
-    id: number | null;
-    tipo: 'mover' | 'redimensionar' | null;
+    idForma: number | null;
+    tipo: 'ponto' | 'forma' | null;
+    indicePonto: number | null;
     startX: number;
     startY: number;
-    origemX: number;
-    origemY: number;
-    larguraInicial: number;
+    pontosIniciais: Ponto[];
   }>({
-    id: null,
+    idForma: null,
     tipo: null,
+    indicePonto: null,
     startX: 0,
     startY: 0,
-    origemX: 0,
-    origemY: 0,
-    larguraInicial: 0,
+    pontosIniciais: [],
   });
 
   useEffect(() => {
     const aoMoverRato = (e: MouseEvent) => {
-      const { id, tipo, startX, startY, origemX, origemY, larguraInicial } = arrastoRef.current;
-      if (!tipo || id === null) return;
+      const { idForma, tipo, indicePonto, startX, startY, pontosIniciais } = arrastoRef.current;
+      if (!tipo || idForma === null) return;
 
-      setReguas((anteriores) =>
-        anteriores.map((regua) => {
-          if (regua.id !== id) return regua;
+      const deltaX = e.clientX - startX;
+      const deltaY = e.clientY - startY;
 
-          if (tipo === 'mover') {
-            const novoX = origemX + (e.clientX - startX);
-            const novoY = origemY + (e.clientY - startY);
-            return { ...regua, x: Math.max(10, novoX), y: Math.max(10, novoY) };
-          } else if (tipo === 'redimensionar') {
-            const novaLargura = larguraInicial + (e.clientX - startX);
-            return { ...regua, largura: Math.max(45, novaLargura) };
+      setFormas((anteriores) =>
+        anteriores.map((forma) => {
+          if (forma.id !== idForma) return forma;
+
+          if (tipo === 'ponto' && indicePonto !== null) {
+            const novosPontos = [...forma.pontos];
+            novosPontos[indicePonto] = {
+              x: Math.max(5, pontosIniciais[indicePonto].x + deltaX),
+              y: Math.max(5, pontosIniciais[indicePonto].y + deltaY),
+            };
+            return { ...forma, pontos: novosPontos };
+          } else if (tipo === 'forma') {
+            const novosPontos = pontosIniciais.map((p) => ({
+              x: Math.max(5, p.x + deltaX),
+              y: Math.max(5, p.y + deltaY),
+            }));
+            return { ...forma, pontos: novosPontos };
           }
-          return regua;
+          return forma;
         })
       );
     };
 
     const aoSoltarRato = () => {
       arrastoRef.current.tipo = null;
-      arrastoRef.current.id = null;
+      arrastoRef.current.idForma = null;
+      arrastoRef.current.indicePonto = null;
     };
 
     window.addEventListener('mousemove', aoMoverRato);
@@ -164,44 +175,76 @@ export default function Estrategico() {
     };
   }, []);
 
-  const iniciarArrasto = (e: React.MouseEvent, regua: ReguaItem) => {
-    arrastoRef.current = {
-      id: regua.id,
-      tipo: 'mover',
-      startX: e.clientX,
-      startY: e.clientY,
-      origemX: regua.x,
-      origemY: regua.y,
-      larguraInicial: regua.largura,
-    };
-  };
-
-  const iniciarRedimensionamento = (e: React.MouseEvent, regua: ReguaItem) => {
+  const iniciarArrastoPonto = (e: React.MouseEvent, idForma: number, indicePonto: number, pontos: Ponto[]) => {
     e.stopPropagation();
     arrastoRef.current = {
-      id: regua.id,
-      tipo: 'redimensionar',
+      idForma,
+      tipo: 'ponto',
+      indicePonto,
       startX: e.clientX,
       startY: e.clientY,
-      origemX: regua.x,
-      origemY: regua.y,
-      larguraInicial: regua.largura,
+      pontosIniciais: pontos.map((p) => ({ ...p })),
     };
   };
 
-  const adicionarRegua = () => {
-    const novaRegua: ReguaItem = {
+  const iniciarArrastoForma = (e: React.MouseEvent, idForma: number, pontos: Ponto[]) => {
+    e.stopPropagation();
+    arrastoRef.current = {
+      idForma,
+      tipo: 'forma',
+      indicePonto: null,
+      startX: e.clientX,
+      startY: e.clientY,
+      pontosIniciais: pontos.map((p) => ({ ...p })),
+    };
+  };
+
+  const adicionarFormaTriangular = () => {
+    const topoY = 120 + (formas.length % 4) * 40;
+    const centroX = 260 + (formas.length % 4) * 30;
+    const nova: FormaItem = {
       id: Date.now(),
-      x: 140 + (reguas.length % 5) * 20,
-      y: 80 + (reguas.length % 5) * 35,
-      largura: 140,
-      corIdx: reguas.length % CORES_REGUA.length,
+      pontos: [
+        { x: centroX, y: topoY },
+        { x: centroX + 130, y: topoY + 60 },
+        { x: centroX - 50, y: topoY + 70 },
+      ],
+      corIdx: formas.length % CORES_FORMA.length,
     };
-    setReguas((anteriores) => [...anteriores, novaRegua]);
+    setFormas((anteriores) => [...anteriores, nova]);
   };
 
-  const excluirRegua = (id: number) => {
-    setReguas((anteriores) => anteriores.filter((regua) => regua.id !== id));
+  const adicionarFormaRetangulo = () => {
+    const topoY = 100 + (formas.length % 4) * 40;
+    const centroX = 220 + (formas.length % 4) * 30;
+    const nova: FormaItem = {
+      id: Date.now(),
+      pontos: [
+        { x: centroX, y: topoY },
+        { x: centroX + 160, y: topoY },
+        { x: centroX + 160, y: topoY + 50 },
+        { x: centroX, y: topoY + 50 },
+      ],
+      corIdx: formas.length % CORES_FORMA.length,
+    };
+    setFormas((anteriores) => [...anteriores, nova]);
+  };
+
+  const adicionarPontoNaForma = (idForma: number) => {
+    setFormas((anteriores) =>
+      anteriores.map((forma) => {
+        if (forma.id !== idForma) return forma;
+        const ultimoPonto = forma.pontos[forma.pontos.length - 1];
+        return {
+          ...forma,
+          pontos: [...forma.pontos, { x: ultimoPonto.x + 30, y: ultimoPonto.y + 30 }],
+        };
+      })
+    );
+  };
+
+  const excluirForma = (idForma: number) => {
+    setFormas((anteriores) => anteriores.filter((f) => f.id !== idForma));
   };
 
   const alternarNumeroCartela = (cartelaIdx: number, numIdx: number) => {
@@ -239,43 +282,73 @@ export default function Estrategico() {
 
   return (
     <main style={styles.container}>
-      {reguas.map((regua, index) => {
-        const cor = CORES_REGUA[regua.corIdx];
-        return (
-          <div
-            key={regua.id}
-            onMouseDown={(e) => iniciarArrasto(e, regua)}
-            style={{
-              ...styles.regua,
-              left: regua.x,
-              top: regua.y,
-              width: regua.largura,
-              background: cor.bg,
-              borderColor: cor.borda,
-            }}
-            title="Clique e arraste para movimentar esta régua"
-          >
-            <div style={styles.reguaLadoEsquerdo}>
-              <button
-                type="button"
-                onMouseDown={(e) => e.stopPropagation()}
-                onClick={() => excluirRegua(regua.id)}
-                style={styles.btnExcluirRegua}
-                title="Excluir esta régua"
-              >
-                ×
-              </button>
-              <span style={{ ...styles.reguaTexto, color: cor.texto }}>R{index + 1}</span>
-            </div>
+      {/* Camada SVG Flutuante com Réguas Multi-direcionais */}
+      <svg style={styles.svgOverlay}>
+        {formas.map((forma, idx) => {
+          const cor = CORES_FORMA[forma.corIdx];
+          const pontosSvg = forma.pontos.map((p) => `${p.x},${p.y}`).join(' ');
+          const primeiroPonto = forma.pontos[0];
 
-            <div
-              onMouseDown={(e) => iniciarRedimensionamento(e, regua)}
-              style={{ ...styles.puxadorRedimensionar, background: cor.puxador }}
-              title="Puxe aqui para alterar a largura"
-            />
-          </div>
-        );
-      })}
+          return (
+            <g key={forma.id}>
+              {/* Corpo da forma (clique para mover inteira) */}
+              <polygon
+                points={pontosSvg}
+                fill={cor.fill}
+                stroke={cor.stroke}
+                strokeWidth="2"
+                strokeDasharray="4 2"
+                style={{ cursor: 'move', pointerEvents: 'auto' }}
+                onMouseDown={(e) => iniciarArrastoForma(e, forma.id, forma.pontos)}
+              />
+
+              {/* Menu com identificador, botão + para adicionar ponta e × para excluir */}
+              <foreignObject
+                x={primeiroPonto.x - 30}
+                y={primeiroPonto.y - 28}
+                width="75"
+                height="28"
+                style={{ overflow: 'visible' }}
+              >
+                <div style={styles.menuForma}>
+                  <span style={{ ...styles.tagForma, color: cor.stroke }}>#{idx + 1}</span>
+                  <button
+                    type="button"
+                    title="Adicionar mais uma ponta"
+                    onClick={() => adicionarPontoNaForma(forma.id)}
+                    style={styles.btnAcaoMini}
+                  >
+                    +
+                  </button>
+                  <button
+                    type="button"
+                    title="Excluir esta régua"
+                    onClick={() => excluirForma(forma.id)}
+                    style={{ ...styles.btnAcaoMini, color: '#dc2626' }}
+                  >
+                    ×
+                  </button>
+                </div>
+              </foreignObject>
+
+              {/* Pontos/Vértices (arraste qualquer um com o mouse para onde quiser) */}
+              {forma.pontos.map((ponto, pIdx) => (
+                <circle
+                  key={pIdx}
+                  cx={ponto.x}
+                  cy={ponto.y}
+                  r="7"
+                  fill="#ffffff"
+                  stroke={cor.ponto}
+                  strokeWidth="3"
+                  style={{ cursor: 'crosshair', pointerEvents: 'auto' }}
+                  onMouseDown={(e) => iniciarArrastoPonto(e, forma.id, pIdx, forma.pontos)}
+                />
+              ))}
+            </g>
+          );
+        })}
+      </svg>
 
       <header style={styles.topo}>
         <button
@@ -291,15 +364,17 @@ export default function Estrategico() {
         <div style={styles.topoAcoes}>
           <button
             type="button"
-            style={{
-              ...styles.btnAcao,
-              background: '#fef08a',
-              color: '#854d0e',
-              border: '1px solid #eab308',
-            }}
-            onClick={adicionarRegua}
+            style={{ ...styles.btnAcao, background: '#fef08a', color: '#854d0e', border: '1px solid #eab308' }}
+            onClick={adicionarFormaTriangular}
           >
-            📏 + Nova Régua {reguas.length > 0 && `(${reguas.length})`}
+            📐 + Régua Triangular
+          </button>
+          <button
+            type="button"
+            style={{ ...styles.btnAcao, background: '#e0f2fe', color: '#0369a1', border: '1px solid #7dd3fc' }}
+            onClick={adicionarFormaRetangulo}
+          >
+            ⬛ + Régua 4 Pontas
           </button>
           <button type="button" style={styles.btnAcao} onClick={adicionarCartela}>
             + Adicionar Cartela
@@ -365,54 +440,46 @@ const styles = {
     minHeight: '100vh',
     padding: '12px 16px',
     fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    position: 'relative' as const,
   },
-  regua: {
+  svgOverlay: {
     position: 'fixed' as const,
-    height: 20,
-    border: '2px dashed',
-    borderRadius: 6,
-    zIndex: 9999,
-    cursor: 'grab',
+    top: 0,
+    left: 0,
+    width: '100vw',
+    height: '100vh',
+    pointerEvents: 'none' as const,
+    zIndex: 9990,
+  },
+  menuForma: {
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: '0 4px',
-    boxShadow: '0 4px 10px rgba(0, 0, 0, 0.15)',
-    backdropFilter: 'blur(1px)',
-    userSelect: 'none' as const,
-  },
-  reguaLadoEsquerdo: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 4,
-  },
-  btnExcluirRegua: {
+    gap: 3,
     background: '#ffffff',
+    padding: '2px 4px',
+    borderRadius: 6,
+    boxShadow: '0 2px 5px rgba(0,0,0,0.15)',
     border: '1px solid #cbd5e1',
-    borderRadius: '50%',
-    width: 16,
-    height: 16,
-    fontSize: 11,
-    lineHeight: 1,
-    cursor: 'pointer',
-    color: '#ef4444',
+    pointerEvents: 'auto' as const,
+  },
+  tagForma: {
+    fontSize: 10,
+    fontWeight: 900,
+  },
+  btnAcaoMini: {
+    background: '#f1f5f9',
+    border: 'none',
+    borderRadius: 4,
+    width: 15,
+    height: 15,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+    fontSize: 11,
+    fontWeight: 900,
+    cursor: 'pointer',
     padding: 0,
-    fontWeight: 900,
-  },
-  reguaTexto: {
-    fontSize: 10,
-    fontWeight: 900,
-    textTransform: 'uppercase' as const,
-    pointerEvents: 'none' as const,
-  },
-  puxadorRedimensionar: {
-    width: 12,
-    height: 16,
-    borderRadius: 3,
-    cursor: 'ew-resize',
+    color: '#334155',
   },
   topo: {
     maxWidth: 1350,
@@ -441,6 +508,7 @@ const styles = {
   topoAcoes: {
     display: 'flex',
     gap: 8,
+    flexWrap: 'wrap' as const,
   },
   btnAcao: {
     background: '#dbeafe',
