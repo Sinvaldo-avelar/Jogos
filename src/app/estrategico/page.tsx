@@ -11,12 +11,12 @@ const STORAGE_CARTELAS_KEY = 'estrategico_cartelas_ativas';
 const STORAGE_FORMAS_KEY = 'estrategico_formas_ativas';
 
 const CORES_FORMA = [
-  { fill: 'rgba(239, 68, 68, 0.32)', stroke: '#b91c1c', ponto: '#dc2626' }, // Vermelho
-  { fill: 'rgba(234, 179, 8, 0.32)', stroke: '#ca8a04', ponto: '#eab308' },  // Amarelo
-  { fill: 'rgba(34, 197, 94, 0.32)', stroke: '#16a34a', ponto: '#22c55e' },  // Verde
-  { fill: 'rgba(168, 85, 247, 0.32)', stroke: '#9333ea', ponto: '#a855f7' }, // Roxo
-  { fill: 'rgba(249, 115, 22, 0.32)', stroke: '#ea580c', ponto: '#f97316' }, // Laranja
-  { fill: 'rgba(6, 182, 212, 0.32)', stroke: '#0891b2', ponto: '#06b6d4' },  // Ciano
+  { fill: 'rgba(239, 68, 68, 0.32)', stroke: '#b91c1c', ponto: '#dc2626' },
+  { fill: 'rgba(234, 179, 8, 0.32)', stroke: '#ca8a04', ponto: '#eab308' },
+  { fill: 'rgba(34, 197, 94, 0.32)', stroke: '#16a34a', ponto: '#22c55e' },
+  { fill: 'rgba(168, 85, 247, 0.32)', stroke: '#9333ea', ponto: '#a855f7' },
+  { fill: 'rgba(249, 115, 22, 0.32)', stroke: '#ea580c', ponto: '#f97316' },
+  { fill: 'rgba(6, 182, 212, 0.32)', stroke: '#0891b2', ponto: '#06b6d4' },
 ];
 
 interface Ponto {
@@ -73,8 +73,8 @@ export default function Estrategico() {
   const [carregado, setCarregado] = useState(false);
   const [cartelas, setCartelas] = useState<number[][]>([]);
   const [formas, setFormas] = useState<FormaItem[]>([]);
+  const [formaEmFoco, setFormaEmFoco] = useState<number | null>(null);
 
-  // Carregar dados salvos localmente
   useEffect(() => {
     try {
       const cartelasSalvas = localStorage.getItem(STORAGE_CARTELAS_KEY);
@@ -99,7 +99,6 @@ export default function Estrategico() {
     }
   }, []);
 
-  // Salvar alterações automaticamente
   useEffect(() => {
     if (carregado) {
       localStorage.setItem(STORAGE_CARTELAS_KEY, JSON.stringify(cartelas));
@@ -112,7 +111,6 @@ export default function Estrategico() {
     }
   }, [formas, carregado]);
 
-  // Gestão de arrasto dinâmico pelo mouse (cada ponta ou o corpo todo)
   const arrastoRef = useRef<{
     idForma: number | null;
     tipo: 'ponto' | 'forma' | null;
@@ -214,6 +212,21 @@ export default function Estrategico() {
     setFormas((anteriores) => [...anteriores, nova]);
   };
 
+  const adicionarFormaLivre = () => {
+    const topoY = 140 + (formas.length % 4) * 40;
+    const centroX = 300 + (formas.length % 4) * 30;
+    const nova: FormaItem = {
+      id: Date.now(),
+      pontos: [
+        { x: centroX, y: topoY },
+        { x: centroX + 120, y: topoY + 25 },
+        { x: centroX + 55, y: topoY + 95 },
+      ],
+      corIdx: formas.length % CORES_FORMA.length,
+    };
+    setFormas((anteriores) => [...anteriores, nova]);
+  };
+
   const adicionarFormaRetangulo = () => {
     const topoY = 100 + (formas.length % 4) * 40;
     const centroX = 220 + (formas.length % 4) * 30;
@@ -282,16 +295,22 @@ export default function Estrategico() {
 
   return (
     <main style={styles.container}>
-      {/* Camada SVG Flutuante com Réguas Multi-direcionais */}
+      {/* Camada SVG Flutuante das Réguas */}
       <svg style={styles.svgOverlay}>
         {formas.map((forma, idx) => {
           const cor = CORES_FORMA[forma.corIdx];
           const pontosSvg = forma.pontos.map((p) => `${p.x},${p.y}`).join(' ');
-          const primeiroPonto = forma.pontos[0];
+          const centroForma = forma.pontos.reduce(
+            (centro, ponto) => ({ x: centro.x + ponto.x / forma.pontos.length, y: centro.y + ponto.y / forma.pontos.length }),
+            { x: 0, y: 0 }
+          );
 
           return (
-            <g key={forma.id}>
-              {/* Corpo da forma (clique para mover inteira) */}
+            <g
+              key={forma.id}
+              onMouseEnter={() => setFormaEmFoco(forma.id)}
+              onMouseLeave={() => setFormaEmFoco(null)}
+            >
               <polygon
                 points={pontosSvg}
                 fill={cor.fill}
@@ -302,13 +321,17 @@ export default function Estrategico() {
                 onMouseDown={(e) => iniciarArrastoForma(e, forma.id, forma.pontos)}
               />
 
-              {/* Menu com identificador, botão + para adicionar ponta e × para excluir */}
               <foreignObject
-                x={primeiroPonto.x - 30}
-                y={primeiroPonto.y - 28}
+                x={centroForma.x - 30}
+                y={centroForma.y - 14}
                 width="75"
                 height="28"
-                style={{ overflow: 'visible' }}
+                style={{
+                  overflow: 'visible',
+                  opacity: formaEmFoco === forma.id ? 1 : 0,
+                  pointerEvents: formaEmFoco === forma.id ? 'auto' : 'none',
+                  transition: 'opacity 120ms ease',
+                }}
               >
                 <div style={styles.menuForma}>
                   <span style={{ ...styles.tagForma, color: cor.stroke }}>#{idx + 1}</span>
@@ -331,16 +354,15 @@ export default function Estrategico() {
                 </div>
               </foreignObject>
 
-              {/* Pontos/Vértices (arraste qualquer um com o mouse para onde quiser) */}
               {forma.pontos.map((ponto, pIdx) => (
                 <circle
                   key={pIdx}
                   cx={ponto.x}
                   cy={ponto.y}
-                  r="7"
-                  fill="#ffffff"
-                  stroke={cor.ponto}
-                  strokeWidth="3"
+                  r="10"
+                  fill="transparent"
+                  stroke="transparent"
+                  strokeWidth="0"
                   style={{ cursor: 'crosshair', pointerEvents: 'auto' }}
                   onMouseDown={(e) => iniciarArrastoPonto(e, forma.id, pIdx, forma.pontos)}
                 />
@@ -350,6 +372,7 @@ export default function Estrategico() {
         })}
       </svg>
 
+      {/* Cabeçalho fixado no topo para nunca sumir ao rolar */}
       <header style={styles.topo}>
         <button
           type="button"
@@ -376,6 +399,13 @@ export default function Estrategico() {
           >
             ⬛ + Régua 4 Pontas
           </button>
+          <button
+            type="button"
+            style={{ ...styles.btnAcao, background: '#dcfce7', color: '#15803d', border: '1px solid #86efac' }}
+            onClick={adicionarFormaLivre}
+          >
+            ✦ + Régua Livre
+          </button>
           <button type="button" style={styles.btnAcao} onClick={adicionarCartela}>
             + Adicionar Cartela
           </button>
@@ -389,46 +419,49 @@ export default function Estrategico() {
         </div>
       </header>
 
-      <div style={styles.listaCartelas}>
-        {cartelas.map((cartela, idx) => {
-          const totalMarcados = cartela.filter((estado) => estado > 0).length;
+      {/* Área deslizante das cartelas */}
+      <div style={styles.areaDeslizante}>
+        <div style={styles.listaCartelas}>
+          {cartelas.map((cartela, idx) => {
+            const totalMarcados = cartela.filter((estado) => estado > 0).length;
 
-          return (
-            <div key={idx} style={styles.cartelaBox}>
-              <div style={styles.infoCartela}>
-                <span style={styles.badgeNumero}>#{String(idx + 1).padStart(2, '0')}</span>
-                <span
-                  style={{
-                    ...styles.badgeContador,
-                    background: totalMarcados > 0 ? '#dbeafe' : '#f1f5f9',
-                    color: totalMarcados > 0 ? '#1d4ed8' : '#64748b',
-                    borderColor: totalMarcados > 0 ? '#93c5fd' : '#e2e8f0',
-                  }}
-                  title="Total de números marcados nesta cartela"
-                >
-                  {totalMarcados}
-                </span>
-                {totalMarcados > 0 && (
-                  <button
-                    type="button"
-                    style={styles.btnLimparCartela}
-                    title="Limpar apenas esta cartela"
-                    onClick={() => limparCartelaIndividual(idx)}
+            return (
+              <div key={idx} style={styles.cartelaBox}>
+                <div style={styles.infoCartela}>
+                  <span style={styles.badgeNumero}>#{String(idx + 1).padStart(2, '0')}</span>
+                  <span
+                    style={{
+                      ...styles.badgeContador,
+                      background: totalMarcados > 0 ? '#dbeafe' : '#f1f5f9',
+                      color: totalMarcados > 0 ? '#1d4ed8' : '#64748b',
+                      borderColor: totalMarcados > 0 ? '#93c5fd' : '#e2e8f0',
+                    }}
+                    title="Total de números marcados nesta cartela"
                   >
-                    ×
-                  </button>
-                )}
-              </div>
+                    {totalMarcados}
+                  </span>
+                  {totalMarcados > 0 && (
+                    <button
+                      type="button"
+                      style={styles.btnLimparCartela}
+                      title="Limpar apenas esta cartela"
+                      onClick={() => limparCartelaIndividual(idx)}
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
 
-              <div style={styles.gradeContainer}>
-                <LinhaNumeros
-                  valores={cartela}
-                  aoAlternar={(numIdx) => alternarNumeroCartela(idx, numIdx)}
-                />
+                <div style={styles.gradeContainer}>
+                  <LinhaNumeros
+                    valores={cartela}
+                    aoAlternar={(numIdx) => alternarNumeroCartela(idx, numIdx)}
+                  />
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     </main>
   );
@@ -437,10 +470,12 @@ export default function Estrategico() {
 const styles = {
   container: {
     background: '#f8fafc',
-    minHeight: '100vh',
-    padding: '12px 16px',
+    height: '100vh',
+    display: 'flex',
+    flexDirection: 'column' as const,
     fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     position: 'relative' as const,
+    overflow: 'hidden',
   },
   svgOverlay: {
     position: 'fixed' as const,
@@ -482,13 +517,17 @@ const styles = {
     color: '#334155',
   },
   topo: {
+    width: '100%',
     maxWidth: 1350,
-    margin: '0 auto 12px auto',
+    margin: '12px auto 8px auto',
+    padding: '0 16px',
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
     flexWrap: 'wrap' as const,
     gap: 8,
+    flexShrink: 0,
+    zIndex: 10,
   },
   btnVoltar: {
     background: '#e2e8f0',
@@ -519,6 +558,12 @@ const styles = {
     fontWeight: 700,
     fontSize: 13,
     cursor: 'pointer',
+  },
+  areaDeslizante: {
+    flex: 1,
+    overflowY: 'scroll' as const, // Permite sempre a barra de rolagem vertical deslizar
+    overflowX: 'hidden' as const,
+    padding: '8px 16px 100vh 16px', // 70vh de espaço inferior permite rolar as cartelas para qualquer posição
   },
   listaCartelas: {
     maxWidth: 1350,
