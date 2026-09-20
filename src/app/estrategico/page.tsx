@@ -300,10 +300,8 @@ export default function Estrategico() {
         {formas.map((forma, idx) => {
           const cor = CORES_FORMA[forma.corIdx];
           const pontosSvg = forma.pontos.map((p) => `${p.x},${p.y}`).join(' ');
-          const centroForma = forma.pontos.reduce(
-            (centro, ponto) => ({ x: centro.x + ponto.x / forma.pontos.length, y: centro.y + ponto.y / forma.pontos.length }),
-            { x: 0, y: 0 }
-          );
+          const menorX = Math.min(...forma.pontos.map((ponto) => ponto.x));
+          const menorY = Math.min(...forma.pontos.map((ponto) => ponto.y));
 
           return (
             <g
@@ -322,8 +320,8 @@ export default function Estrategico() {
               />
 
               <foreignObject
-                x={centroForma.x - 30}
-                y={centroForma.y - 14}
+                x={menorX}
+                y={Math.max(8, menorY - 34)}
                 width="75"
                 height="28"
                 style={{
