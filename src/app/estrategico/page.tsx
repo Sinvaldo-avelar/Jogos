@@ -8,25 +8,20 @@ const ESTADO_SELECIONADO = 1;
 const ESTADO_FIXO = 2;
 
 const STORAGE_CARTELAS_KEY = 'estrategico_cartelas_ativas';
-const STORAGE_FORMAS_KEY = 'estrategico_formas_ativas';
+const STORAGE_GABARITOS_KEY = 'estrategico_gabaritos_transparentes';
 
-const CORES_FORMA = [
-  { fill: 'rgba(239, 68, 68, 0.32)', stroke: '#b91c1c', ponto: '#dc2626' },
-  { fill: 'rgba(234, 179, 8, 0.32)', stroke: '#ca8a04', ponto: '#eab308' },
-  { fill: 'rgba(34, 197, 94, 0.32)', stroke: '#16a34a', ponto: '#22c55e' },
-  { fill: 'rgba(168, 85, 247, 0.32)', stroke: '#9333ea', ponto: '#a855f7' },
-  { fill: 'rgba(249, 115, 22, 0.32)', stroke: '#ea580c', ponto: '#f97316' },
-  { fill: 'rgba(6, 182, 212, 0.32)', stroke: '#0891b2', ponto: '#06b6d4' },
+const CORES_GABARITO = [
+  { solido: '#dc2626', borda: '#991b1b', nome: 'Vermelho' },
+  { solido: '#16a34a', borda: '#15803d', nome: 'Verde' },
+  { solido: '#9333ea', borda: '#7e22ce', nome: 'Roxo' },
+  { solido: '#ea580c', borda: '#c2410c', nome: 'Laranja' },
 ];
 
-interface Ponto {
+interface GabaritoItem {
+  id: number;
   x: number;
   y: number;
-}
-
-interface FormaItem {
-  id: number;
-  pontos: Ponto[];
+  valores: number[];
   corIdx: number;
 }
 
@@ -34,6 +29,7 @@ function formatarNumero(indice: number) {
   return indice === 99 ? '00' : String(indice + 1).padStart(2, '0');
 }
 
+// Linha de números padrão da cartela normal
 function LinhaNumeros({
   valores,
   aoAlternar,
@@ -72,9 +68,9 @@ export default function Estrategico() {
 
   const [carregado, setCarregado] = useState(false);
   const [cartelas, setCartelas] = useState<number[][]>([]);
-  const [formas, setFormas] = useState<FormaItem[]>([]);
-  const [formaEmFoco, setFormaEmFoco] = useState<number | null>(null);
+  const [gabaritos, setGabaritos] = useState<GabaritoItem[]>([]);
 
+  // Carregar dados locais
   useEffect(() => {
     try {
       const cartelasSalvas = localStorage.getItem(STORAGE_CARTELAS_KEY);
@@ -86,9 +82,9 @@ export default function Estrategico() {
         );
       }
 
-      const formasSalvas = localStorage.getItem(STORAGE_FORMAS_KEY);
-      if (formasSalvas) {
-        setFormas(JSON.parse(formasSalvas));
+      const gabaritosSalvos = localStorage.getItem(STORAGE_GABARITOS_KEY);
+      if (gabaritosSalvos) {
+        setGabaritos(JSON.parse(gabaritosSalvos));
       }
     } catch {
       setCartelas(
@@ -99,6 +95,7 @@ export default function Estrategico() {
     }
   }, []);
 
+  // Persistência
   useEffect(() => {
     if (carregado) {
       localStorage.setItem(STORAGE_CARTELAS_KEY, JSON.stringify(cartelas));
@@ -107,61 +104,47 @@ export default function Estrategico() {
 
   useEffect(() => {
     if (carregado) {
-      localStorage.setItem(STORAGE_FORMAS_KEY, JSON.stringify(formas));
+      localStorage.setItem(STORAGE_GABARITOS_KEY, JSON.stringify(gabaritos));
     }
-  }, [formas, carregado]);
+  }, [gabaritos, carregado]);
 
+  // Gestão de arrasto da cartela-gabarito
   const arrastoRef = useRef<{
-    idForma: number | null;
-    tipo: 'ponto' | 'forma' | null;
-    indicePonto: number | null;
+    id: number | null;
     startX: number;
     startY: number;
-    pontosIniciais: Ponto[];
+    origemX: number;
+    origemY: number;
   }>({
-    idForma: null,
-    tipo: null,
-    indicePonto: null,
+    id: null,
     startX: 0,
     startY: 0,
-    pontosIniciais: [],
+    origemX: 0,
+    origemY: 0,
   });
 
   useEffect(() => {
     const aoMoverRato = (e: MouseEvent) => {
-      const { idForma, tipo, indicePonto, startX, startY, pontosIniciais } = arrastoRef.current;
-      if (!tipo || idForma === null) return;
+      const { id, startX, startY, origemX, origemY } = arrastoRef.current;
+      if (id === null) return;
 
       const deltaX = e.clientX - startX;
       const deltaY = e.clientY - startY;
 
-      setFormas((anteriores) =>
-        anteriores.map((forma) => {
-          if (forma.id !== idForma) return forma;
-
-          if (tipo === 'ponto' && indicePonto !== null) {
-            const novosPontos = [...forma.pontos];
-            novosPontos[indicePonto] = {
-              x: Math.max(5, pontosIniciais[indicePonto].x + deltaX),
-              y: Math.max(5, pontosIniciais[indicePonto].y + deltaY),
-            };
-            return { ...forma, pontos: novosPontos };
-          } else if (tipo === 'forma') {
-            const novosPontos = pontosIniciais.map((p) => ({
-              x: Math.max(5, p.x + deltaX),
-              y: Math.max(5, p.y + deltaY),
-            }));
-            return { ...forma, pontos: novosPontos };
-          }
-          return forma;
+      setGabaritos((anteriores) =>
+        anteriores.map((gab) => {
+          if (gab.id !== id) return gab;
+          return {
+            ...gab,
+            x: Math.max(10, origemX + deltaX),
+            y: Math.max(10, origemY + deltaY),
+          };
         })
       );
     };
 
     const aoSoltarRato = () => {
-      arrastoRef.current.tipo = null;
-      arrastoRef.current.idForma = null;
-      arrastoRef.current.indicePonto = null;
+      arrastoRef.current.id = null;
     };
 
     window.addEventListener('mousemove', aoMoverRato);
@@ -173,91 +156,48 @@ export default function Estrategico() {
     };
   }, []);
 
-  const iniciarArrastoPonto = (e: React.MouseEvent, idForma: number, indicePonto: number, pontos: Ponto[]) => {
-    e.stopPropagation();
+  const iniciarArrastoGabarito = (e: React.MouseEvent, gab: GabaritoItem) => {
     arrastoRef.current = {
-      idForma,
-      tipo: 'ponto',
-      indicePonto,
+      id: gab.id,
       startX: e.clientX,
       startY: e.clientY,
-      pontosIniciais: pontos.map((p) => ({ ...p })),
+      origemX: gab.x,
+      origemY: gab.y,
     };
   };
 
-  const iniciarArrastoForma = (e: React.MouseEvent, idForma: number, pontos: Ponto[]) => {
-    e.stopPropagation();
-    arrastoRef.current = {
-      idForma,
-      tipo: 'forma',
-      indicePonto: null,
-      startX: e.clientX,
-      startY: e.clientY,
-      pontosIniciais: pontos.map((p) => ({ ...p })),
-    };
-  };
-
-  const adicionarFormaTriangular = () => {
-    const topoY = 120 + (formas.length % 4) * 40;
-    const centroX = 260 + (formas.length % 4) * 30;
-    const nova: FormaItem = {
+  const adicionarGabarito = () => {
+    const novo: GabaritoItem = {
       id: Date.now(),
-      pontos: [
-        { x: centroX, y: topoY },
-        { x: centroX + 130, y: topoY + 60 },
-        { x: centroX - 50, y: topoY + 70 },
-      ],
-      corIdx: formas.length % CORES_FORMA.length,
+      x: 120 + (gabaritos.length % 4) * 25,
+      y: 90 + (gabaritos.length % 4) * 45,
+      valores: Array(TOTAL_NUMEROS).fill(ESTADO_VAZIO),
+      corIdx: gabaritos.length % CORES_GABARITO.length,
     };
-    setFormas((anteriores) => [...anteriores, nova]);
+    setGabaritos((anteriores) => [...anteriores, novo]);
   };
 
-  const adicionarFormaLivre = () => {
-    const topoY = 140 + (formas.length % 4) * 40;
-    const centroX = 300 + (formas.length % 4) * 30;
-    const nova: FormaItem = {
-      id: Date.now(),
-      pontos: [
-        { x: centroX, y: topoY },
-        { x: centroX + 120, y: topoY + 25 },
-        { x: centroX + 55, y: topoY + 95 },
-      ],
-      corIdx: formas.length % CORES_FORMA.length,
-    };
-    setFormas((anteriores) => [...anteriores, nova]);
-  };
-
-  const adicionarFormaRetangulo = () => {
-    const topoY = 100 + (formas.length % 4) * 40;
-    const centroX = 220 + (formas.length % 4) * 30;
-    const nova: FormaItem = {
-      id: Date.now(),
-      pontos: [
-        { x: centroX, y: topoY },
-        { x: centroX + 160, y: topoY },
-        { x: centroX + 160, y: topoY + 50 },
-        { x: centroX, y: topoY + 50 },
-      ],
-      corIdx: formas.length % CORES_FORMA.length,
-    };
-    setFormas((anteriores) => [...anteriores, nova]);
-  };
-
-  const adicionarPontoNaForma = (idForma: number) => {
-    setFormas((anteriores) =>
-      anteriores.map((forma) => {
-        if (forma.id !== idForma) return forma;
-        const ultimoPonto = forma.pontos[forma.pontos.length - 1];
-        return {
-          ...forma,
-          pontos: [...forma.pontos, { x: ultimoPonto.x + 30, y: ultimoPonto.y + 30 }],
-        };
+  const alternarNumeroGabarito = (idGabarito: number, indiceNum: number) => {
+    setGabaritos((anteriores) =>
+      anteriores.map((gab) => {
+        if (gab.id !== idGabarito) return gab;
+        const novosValores = [...gab.valores];
+        novosValores[indiceNum] = novosValores[indiceNum] === 0 ? 1 : 0;
+        return { ...gab, valores: novosValores };
       })
     );
   };
 
-  const excluirForma = (idForma: number) => {
-    setFormas((anteriores) => anteriores.filter((f) => f.id !== idForma));
+  const limparGabarito = (idGabarito: number) => {
+    setGabaritos((anteriores) =>
+      anteriores.map((gab) =>
+        gab.id === idGabarito ? { ...gab, valores: Array(TOTAL_NUMEROS).fill(ESTADO_VAZIO) } : gab
+      )
+    );
+  };
+
+  const excluirGabarito = (idGabarito: number) => {
+    setGabaritos((anteriores) => anteriores.filter((gab) => gab.id !== idGabarito));
   };
 
   const alternarNumeroCartela = (cartelaIdx: number, numIdx: number) => {
@@ -295,82 +235,79 @@ export default function Estrategico() {
 
   return (
     <main style={styles.container}>
-      {/* Camada SVG Flutuante das Réguas */}
-      <svg style={styles.svgOverlay}>
-        {formas.map((forma, idx) => {
-          const cor = CORES_FORMA[forma.corIdx];
-          const pontosSvg = forma.pontos.map((p) => `${p.x},${p.y}`).join(' ');
-          const menorX = Math.min(...forma.pontos.map((ponto) => ponto.x));
-          const menorY = Math.min(...forma.pontos.map((ponto) => ponto.y));
+      {/* Camada das Cartelas Gabarito Transparentes Flutuantes */}
+      {gabaritos.map((gab, idx) => {
+        const cor = CORES_GABARITO[gab.corIdx];
+        const marcadosNoGabarito = gab.valores.filter((v) => v > 0).length;
 
-          return (
-            <g
-              key={forma.id}
-              onMouseEnter={() => setFormaEmFoco(forma.id)}
-              onMouseLeave={() => setFormaEmFoco(null)}
+        return (
+          <div
+            key={gab.id}
+            style={{
+              ...styles.gabaritoContainer,
+              left: gab.x,
+              top: gab.y,
+            }}
+          >
+            {/* Pega / Alça de Arraste Lateral */}
+            <div
+              onMouseDown={(e) => iniciarArrastoGabarito(e, gab)}
+              style={styles.alcaGabarito}
+              title="Clique e arraste para movimentar este gabarito transparente sobre qualquer cartela"
             >
-              <polygon
-                points={pontosSvg}
-                fill={cor.fill}
-                stroke={cor.stroke}
-                strokeWidth="2"
-                strokeDasharray="4 2"
-                style={{ cursor: 'move', pointerEvents: 'auto' }}
-                onMouseDown={(e) => iniciarArrastoForma(e, forma.id, forma.pontos)}
-              />
-
-              <foreignObject
-                x={menorX}
-                y={Math.max(8, menorY - 34)}
-                width="75"
-                height="28"
-                style={{
-                  overflow: 'visible',
-                  opacity: formaEmFoco === forma.id ? 1 : 0,
-                  pointerEvents: formaEmFoco === forma.id ? 'auto' : 'none',
-                  transition: 'opacity 120ms ease',
-                }}
-              >
-                <div style={styles.menuForma}>
-                  <span style={{ ...styles.tagForma, color: cor.stroke }}>#{idx + 1}</span>
+              <span style={{ fontSize: 10, fontWeight: 900, color: cor.borda }}>G{idx + 1}</span>
+              <span style={styles.badgeContadorGabarito}>{marcadosNoGabarito}</span>
+              <div style={{ display: 'flex', gap: 3 }}>
+                {marcadosNoGabarito > 0 && (
                   <button
                     type="button"
-                    title="Adicionar mais uma ponta"
-                    onClick={() => adicionarPontoNaForma(forma.id)}
+                    onClick={() => limparGabarito(gab.id)}
                     style={styles.btnAcaoMini}
+                    title="Limpar números deste gabarito"
                   >
-                    +
+                    ↺
                   </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => excluirGabarito(gab.id)}
+                  style={{ ...styles.btnAcaoMini, color: '#dc2626' }}
+                  title="Fechar gabarito"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+
+            {/* Grade Transparente (sobrepõe perfeitamente a grelha de baixo) */}
+            <div style={styles.gradeContainer}>
+              <div style={styles.linhaNumeros}>
+                {gab.valores.map((ativo, numIdx) => (
                   <button
+                    key={numIdx}
                     type="button"
-                    title="Excluir esta régua"
-                    onClick={() => excluirForma(forma.id)}
-                    style={{ ...styles.btnAcaoMini, color: '#dc2626' }}
+                    onClick={() => alternarNumeroGabarito(gab.id, numIdx)}
+                    style={{
+                      ...styles.numero,
+                      // Se NÃO estiver clicado: 100% invisível (sem borda, sem fundo, sem texto por cima)
+                      // Se ESTIVER clicado: sólido, tampando e destacando exatamente a dezena
+                      background: ativo ? cor.solido : 'transparent',
+                      borderColor: ativo ? cor.borda : 'transparent',
+                      color: ativo ? '#ffffff' : 'transparent',
+                      boxShadow: ativo ? '0 2px 8px rgba(0,0,0,0.5)' : 'none',
+                      pointerEvents: 'auto',
+                      cursor: 'pointer',
+                    }}
                   >
-                    ×
+                    {ativo ? formatarNumero(numIdx) : ''}
                   </button>
-                </div>
-              </foreignObject>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })}
 
-              {forma.pontos.map((ponto, pIdx) => (
-                <circle
-                  key={pIdx}
-                  cx={ponto.x}
-                  cy={ponto.y}
-                  r="10"
-                  fill="transparent"
-                  stroke="transparent"
-                  strokeWidth="0"
-                  style={{ cursor: 'crosshair', pointerEvents: 'auto' }}
-                  onMouseDown={(e) => iniciarArrastoPonto(e, forma.id, pIdx, forma.pontos)}
-                />
-              ))}
-            </g>
-          );
-        })}
-      </svg>
-
-      {/* Cabeçalho fixado no topo para nunca sumir ao rolar */}
       <header style={styles.topo}>
         <button
           type="button"
@@ -385,24 +322,15 @@ export default function Estrategico() {
         <div style={styles.topoAcoes}>
           <button
             type="button"
-            style={{ ...styles.btnAcao, background: '#fef08a', color: '#854d0e', border: '1px solid #eab308' }}
-            onClick={adicionarFormaTriangular}
+            style={{
+              ...styles.btnAcao,
+              background: '#fef08a',
+              color: '#854d0e',
+              border: '1px solid #eab308',
+            }}
+            onClick={adicionarGabarito}
           >
-            📐 + Régua Triangular
-          </button>
-          <button
-            type="button"
-            style={{ ...styles.btnAcao, background: '#e0f2fe', color: '#0369a1', border: '1px solid #7dd3fc' }}
-            onClick={adicionarFormaRetangulo}
-          >
-            ⬛ + Régua 4 Pontas
-          </button>
-          <button
-            type="button"
-            style={{ ...styles.btnAcao, background: '#dcfce7', color: '#15803d', border: '1px solid #86efac' }}
-            onClick={adicionarFormaLivre}
-          >
-            ✦ + Régua Livre
+            📋 + Cartela Gabarito {gabaritos.length > 0 && `(${gabaritos.length})`}
           </button>
           <button type="button" style={styles.btnAcao} onClick={adicionarCartela}>
             + Adicionar Cartela
@@ -417,7 +345,6 @@ export default function Estrategico() {
         </div>
       </header>
 
-      {/* Área deslizante das cartelas */}
       <div style={styles.areaDeslizante}>
         <div style={styles.listaCartelas}>
           {cartelas.map((cartela, idx) => {
@@ -475,49 +402,10 @@ const styles = {
     position: 'relative' as const,
     overflow: 'hidden',
   },
-  svgOverlay: {
-    position: 'fixed' as const,
-    top: 0,
-    left: 0,
-    width: '100vw',
-    height: '100vh',
-    pointerEvents: 'none' as const,
-    zIndex: 9990,
-  },
-  menuForma: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 3,
-    background: '#ffffff',
-    padding: '2px 4px',
-    borderRadius: 6,
-    boxShadow: '0 2px 5px rgba(0,0,0,0.15)',
-    border: '1px solid #cbd5e1',
-    pointerEvents: 'auto' as const,
-  },
-  tagForma: {
-    fontSize: 10,
-    fontWeight: 900,
-  },
-  btnAcaoMini: {
-    background: '#f1f5f9',
-    border: 'none',
-    borderRadius: 4,
-    width: 15,
-    height: 15,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: 11,
-    fontWeight: 900,
-    cursor: 'pointer',
-    padding: 0,
-    color: '#334155',
-  },
   topo: {
     width: '100%',
     maxWidth: 1350,
-    margin: '12px auto 8px auto',
+    margin: '4px auto 2px auto',
     padding: '0 16px',
     display: 'flex',
     justifyContent: 'space-between',
@@ -559,9 +447,9 @@ const styles = {
   },
   areaDeslizante: {
     flex: 1,
-    overflowY: 'scroll' as const, // Permite sempre a barra de rolagem vertical deslizar
+    overflowY: 'scroll' as const,
     overflowX: 'hidden' as const,
-    padding: '8px 16px 100vh 16px', // 70vh de espaço inferior permite rolar as cartelas para qualquer posição
+    padding: '4px 16px 100vh 16px',
   },
   listaCartelas: {
     maxWidth: 1350,
@@ -632,10 +520,63 @@ const styles = {
     borderStyle: 'solid',
     borderRadius: 4,
     fontSize: 11,
-    fontWeight: 700,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     userSelect: 'none' as const,
+    cursor: 'pointer',
+  },
+  // Estilos da Cartela Gabarito Transparente Flutuante
+  gabaritoContainer: {
+    position: 'fixed' as const,
+    zIndex: 9999,
+    width: 'calc(100% - 32px)',
+    maxWidth: 1350,
+    background: 'transparent',
+    borderRadius: 8,
+    border: 'none',
+    padding: '6px 10px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    boxShadow: 'none',
+    pointerEvents: 'none' as const, // Permite clicar nas cartelas de trás sem travar
+  },
+ alcaGabarito: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    minWidth: 78,
+    cursor: 'grab',
+    background: '#ffffff',
+    padding: '3px 6px',
+    borderRadius: 6,
+    border: '1px solid #cbd5e1',
+    userSelect: 'none' as const,
+    pointerEvents: 'auto' as const, // <-- ESSENCIAL: reativa o clique do mouse para arrastar
+    boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
+  },
+  badgeContadorGabarito: {
+    fontSize: 11,
+    fontWeight: 900,
+    background: '#f1f5f9',
+    padding: '1px 5px',
+    borderRadius: 8,
+    color: '#334155',
+  },
+  btnAcaoMini: {
+    background: '#f8fafc',
+    border: '1px solid #e2e8f0',
+    borderRadius: 4,
+    width: 16,
+    height: 16,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: 11,
+    fontWeight: 900,
+    cursor: 'pointer',
+    padding: 0,
+    color: '#475569',
   },
 };
