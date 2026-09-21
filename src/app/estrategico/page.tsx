@@ -247,6 +247,7 @@ export default function Estrategico() {
               ...styles.gabaritoContainer,
               left: gab.x,
               top: gab.y,
+              border: `2px dashed ${cor.borda}`, // Borda visível na cor do gabarito!
             }}
           >
             {/* Pega / Alça de Arraste Lateral */}
@@ -534,12 +535,12 @@ const styles = {
     maxWidth: 1350,
     background: 'transparent',
     borderRadius: 8,
-    border: 'none',
+    border: '2px dashed #2563eb',
     padding: '6px 10px',
     display: 'flex',
     alignItems: 'center',
     gap: 10,
-    boxShadow: 'none',
+    boxShadow: '0 4px 14px rgba(0, 0, 0, 0.15',
     pointerEvents: 'none' as const, // Permite clicar nas cartelas de trás sem travar
   },
  alcaGabarito: {
