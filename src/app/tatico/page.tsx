@@ -9,6 +9,7 @@ const NUMS = Array.from({ length: COLUNAS_QTD }, (_, i) => i + 1);
 const STORAGE_CARTELAS_FIXAS_KEY = "gerador_cartelas_fixas_5x20";
 const STORAGE_CARTELAS_SALVAS_KEY = "gerador_cartelas_5x20_salvas";
 const STORAGE_GABARITOS_KEY = "gerador_gabaritos_5x20_transparentes";
+const STORAGE_TRAVA_GERAL_KEY = "gerador_trava_geral_5x20";
 
 const CORES_GABARITO = [
   { solido: '#dc2626', borda: '#991b1b', nome: 'Vermelho' },
@@ -29,6 +30,7 @@ interface CartelaFixa5x20Item {
   id: number;
   selecionadas: number[][];
   msg: string;
+  bloqueada?: boolean;
 }
 
 function CartaoMontarJogo({ 
@@ -37,17 +39,45 @@ function CartaoMontarJogo({
   alternarNumero, 
   salvarCartela, 
   removerCartela, 
+  alternarTravaIndividual,
+  travaGeralAtiva,
   celulaCartelaStyle 
 }: any) {
+  const estaTravada = travaGeralAtiva || cartela.bloqueada;
+
   const totalEscolhidos = cartela.selecionadas.reduce(
     (acc: number, linha: number[]) => acc + linha.filter(v => v === 1 || v === 2).length,
     0
   );
 
   return (
-    <div style={styles.cardPrincipal}>
+    <div style={{
+      ...styles.cardPrincipal,
+      border: estaTravada ? '1px solid #fca5a5' : '1px solid #e2e8f0',
+      background: estaTravada ? '#fffbfa' : '#fff'
+    }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-        <h3 style={styles.cardTitle}>CARTELA #{indice + 1}</h3>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <h3 style={styles.cardTitle}>CARTELA #{indice + 1}</h3>
+          <button
+            type="button"
+            onClick={() => alternarTravaIndividual(cartela.id)}
+            style={{
+              background: estaTravada ? '#fee2e2' : '#f1f5f9',
+              color: estaTravada ? '#dc2626' : '#475569',
+              border: 'none',
+              borderRadius: 4,
+              padding: '2px 5px',
+              fontSize: 11,
+              fontWeight: 800,
+              cursor: 'pointer'
+            }}
+            title={estaTravada ? "Cartela bloqueada contra cliques (Clique para destravar)" : "Travar esta cartela contra cliques"}
+          >
+            {estaTravada ? '🔒 Travada' : '🔓 Aberta'}
+          </button>
+        </div>
+
         <button
           type="button"
           onClick={() => removerCartela(cartela.id)}
@@ -62,7 +92,13 @@ function CartaoMontarJogo({
         Escolhidos: {totalEscolhidos}
       </div>
 
-      <div style={styles.gradeSelecao}>
+      {/* Grade com bloqueio total de ponteiro caso travada */}
+      <div style={{
+        ...styles.gradeSelecao,
+        pointerEvents: estaTravada ? 'none' : 'auto',
+        opacity: estaTravada ? 0.88 : 1,
+        userSelect: 'none'
+      }}>
         {Array.from({ length: LINHAS_QTD }, (_, linhaIdx) => (
           <div key={linhaIdx} style={{ display: 'flex', gap: 4 }}>
             {NUMS.map(num => {
@@ -85,12 +121,13 @@ function CartaoMontarJogo({
               return (
                 <button
                   key={num}
+                  disabled={estaTravada}
                   style={{
                     ...(celulaCartelaStyle || styles.celulaCartela),
                     background,
                     color,
                     border,
-                    cursor: "pointer",
+                    cursor: estaTravada ? "default" : "pointer",
                   }}
                   onClick={() => alternarNumero(cartela.id, linhaIdx, num)}
                 >
@@ -103,10 +140,15 @@ function CartaoMontarJogo({
       </div>
 
       <button
-        style={{ ...styles.btnSalvar, background: "#16a34a" }}
+        disabled={estaTravada}
+        style={{
+          ...styles.btnSalvar,
+          background: estaTravada ? "#94a3b8" : "#16a34a",
+          cursor: estaTravada ? "not-allowed" : "pointer"
+        }}
         onClick={() => salvarCartela(cartela.id)}
       >
-        SALVAR
+        {estaTravada ? "CARTELA TRAVADA" : "SALVAR"}
       </button>
       {cartela.msg && <div style={{ color: '#16a34a', marginTop: 6, fontWeight: 600, fontSize: 12, textAlign: 'center' }}>{cartela.msg}</div>}
     </div>
@@ -120,6 +162,7 @@ export default function Gerador() {
   const [cartelaEditTemp, setCartelaEditTemp] = useState<number[][] | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [gabaritos, setGabaritos] = useState<Gabarito5x20[]>([]);
+  const [travaGeral, setTravaGeral] = useState(false);
 
   // Lista dinâmica de cartelas fixas 5x20
   const [cartelasFixas, setCartelasFixas] = useState<CartelaFixa5x20Item[]>([]);
@@ -132,10 +175,10 @@ export default function Gerador() {
       setCartelasFixas(JSON.parse(fixasSalvas));
     } else {
       setCartelasFixas([
-        { id: 1, selecionadas: gerarGradeVazia(), msg: "" },
-        { id: 2, selecionadas: gerarGradeVazia(), msg: "" },
-        { id: 3, selecionadas: gerarGradeVazia(), msg: "" },
-        { id: 4, selecionadas: gerarGradeVazia(), msg: "" },
+        { id: 1, selecionadas: gerarGradeVazia(), msg: "", bloqueada: false },
+        { id: 2, selecionadas: gerarGradeVazia(), msg: "", bloqueada: false },
+        { id: 3, selecionadas: gerarGradeVazia(), msg: "", bloqueada: false },
+        { id: 4, selecionadas: gerarGradeVazia(), msg: "", bloqueada: false },
       ]);
     }
 
@@ -144,6 +187,9 @@ export default function Gerador() {
 
     const gSalvos = localStorage.getItem(STORAGE_GABARITOS_KEY);
     if (gSalvos) setGabaritos(JSON.parse(gSalvos));
+
+    const travaSalva = localStorage.getItem(STORAGE_TRAVA_GERAL_KEY);
+    if (travaSalva) setTravaGeral(JSON.parse(travaSalva));
     
     const handleResize = () => setIsMobile(window.innerWidth < 700);
     handleResize();
@@ -171,11 +217,27 @@ export default function Gerador() {
     }
   }, [gabaritos, montado]);
 
-  // Manipulação de cartelas fixas
+  useEffect(() => {
+    if (montado) {
+      localStorage.setItem(STORAGE_TRAVA_GERAL_KEY, JSON.stringify(travaGeral));
+    }
+  }, [travaGeral, montado]);
+
+  // Manipulação de cartelas fixas e travas
+  const alternarTravaGeral = () => {
+    setTravaGeral(prev => !prev);
+  };
+
+  const alternarTravaIndividual = (id: number) => {
+    setCartelasFixas(prev => prev.map(c => 
+      c.id === id ? { ...c, bloqueada: !c.bloqueada } : c
+    ));
+  };
+
   const adicionarCartelaFixa = () => {
     setCartelasFixas(prev => [
       ...prev,
-      { id: Date.now(), selecionadas: gerarGradeVazia(), msg: "" }
+      { id: Date.now(), selecionadas: gerarGradeVazia(), msg: "", bloqueada: false }
     ]);
   };
 
@@ -378,6 +440,21 @@ export default function Gerador() {
         </button>
 
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          {/* Botão de Trava Geral */}
+          <button
+            type="button"
+            onClick={alternarTravaGeral}
+            style={{
+              ...styles.btnAcaoTopo,
+              background: travaGeral ? '#fee2e2' : '#dcfce7',
+              color: travaGeral ? '#b91c1c' : '#15803d',
+              border: travaGeral ? '1px solid #f87171' : '1px solid #86efac',
+            }}
+            title={travaGeral ? "Cartelas de baixo protegidas contra cliques acidentais" : "Clique para travar todas as cartelas de baixo"}
+          >
+            {travaGeral ? "🔒 TRAVA GERAL: LIGADA" : "🔓 TRAVA GERAL: LIVRE"}
+          </button>
+
           <button
             type="button"
             style={styles.btnAdicionarCartelaFixa}
@@ -385,6 +462,7 @@ export default function Gerador() {
           >
             ➕ Adicionar Cartela ({cartelasFixas.length})
           </button>
+          
           <button
             type="button"
             style={styles.btnNovoGabarito}
@@ -397,7 +475,7 @@ export default function Gerador() {
 
       <h1 style={styles.title}>GERADOR TÁTICO 5x20</h1>
 
-      {/* Cartelas Fixas Dinâmicas (Adicione quantas quiser!) */}
+      {/* Cartelas Fixas com Suporte a Trava */}
       <div style={{
         display: 'flex',
         flexWrap: 'wrap',
@@ -416,6 +494,8 @@ export default function Gerador() {
             alternarNumero={alternarNumeroCartelaFixa}
             salvarCartela={salvarCartelaFixa}
             removerCartela={removerCartelaFixa}
+            alternarTravaIndividual={alternarTravaIndividual}
+            travaGeralAtiva={travaGeral}
             celulaCartelaStyle={celulaEstilo}
           />
         ))}
@@ -486,6 +566,15 @@ const styles = {
   title: { fontSize: 22, fontWeight: 900, color: "#0f172a", marginBottom: 20, textAlign: 'center' as const },
   topoAcoesBar: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, maxWidth: 1300, margin: '0 auto 20px auto', flexWrap: 'wrap' as const, gap: 10 },
   btnVoltar: { background: '#e0e7ef', border: 'none', borderRadius: 8, padding: '10px 15px', fontWeight: 700, cursor: 'pointer', color: '#334155' },
+  btnAcaoTopo: {
+    borderRadius: 8,
+    padding: '10px 14px',
+    fontWeight: 800,
+    fontSize: 13,
+    cursor: 'pointer',
+    boxShadow: '0 2px 5px rgba(0,0,0,0.06)',
+    transition: 'all 0.15s ease'
+  },
   btnAdicionarCartelaFixa: {
     background: '#dbeafe',
     color: '#1d4ed8',
@@ -493,7 +582,7 @@ const styles = {
     borderRadius: 8,
     padding: '10px 16px',
     fontWeight: 800,
-    fontSize: 14,
+    fontSize: 13,
     cursor: 'pointer',
     boxShadow: '0 2px 5px rgba(0,0,0,0.08)',
   },
@@ -504,11 +593,11 @@ const styles = {
     borderRadius: 8,
     padding: '10px 16px',
     fontWeight: 800,
-    fontSize: 14,
+    fontSize: 13,
     cursor: 'pointer',
     boxShadow: '0 2px 5px rgba(0,0,0,0.08)',
   },
-  cardPrincipal: { background: "#fff", padding: 16, borderRadius: 16, boxShadow: "0 4px 6px -1px rgba(0,0,0,0.08)", border: "1px solid #e2e8f0" },
+  cardPrincipal: { background: "#fff", padding: 16, borderRadius: 16, boxShadow: "0 4px 6px -1px rgba(0,0,0,0.08)", border: "1px solid #e2e8f0", transition: 'all 0.2s ease' },
   cardTitle: { fontSize: 12, fontWeight: 800, color: "#64748b", margin: 0, textTransform: 'uppercase' as const },
   gradeSelecao: { display: 'flex', flexDirection: 'column' as const, gap: 4, alignItems: 'center' },
   celulaCartela: { width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 6, fontWeight: 700, fontSize: 13 },
