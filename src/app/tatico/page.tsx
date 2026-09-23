@@ -168,9 +168,13 @@ export default function Gerador() {
   const [painelRaioXAberto, setPainelRaioXAberto] = useState(false);
   const [raioXPos, setRaioXPos] = useState({ x: 40, y: 100 });
   const [qtdTopCustom, setQtdTopCustom] = useState<number>(20);
-
-  // PONTEIRO DA RODATÓRIA CONTÍNUA (BUFFER CIRCULAR)
   const [ponteiroCarrossel, setPonteiroCarrossel] = useState<number>(0);
+
+  // MODO DE CONTROLE DE FAIXAS VAZIAS:
+  // Modo: 'manual' (você clica nas que quer travar vazias) ou 'auto' (pega as N mais fracas)
+  const [modoVazias, setModoVazias] = useState<'manual' | 'auto'>('manual');
+  const [faixasTravadasVazias, setFaixasTravadasVazias] = useState<number[]>([]);
+  const [qtdFaixasAutoVazias, setQtdFaixasAutoVazias] = useState<number>(3);
 
   const gerarGradeVazia = () => Array(LINHAS_QTD).fill(0).map(() => Array(COLUNAS_QTD).fill(0));
 
@@ -374,6 +378,7 @@ export default function Gerador() {
     }));
   };
 
+  // --- ESTATÍSTICAS DAS 100 DEZENAS ---
   const estatisticas100 = useMemo(() => {
     const contadores: number[] = Array(100).fill(0);
 
@@ -412,6 +417,53 @@ export default function Gerador() {
     return { lista, ordenadosPorUso, naoUsados, maxQtd, totalJogos: cartelasFixas.length + salvos.length };
   }, [cartelasFixas, salvos]);
 
+  // --- ESTATÍSTICAS DAS 20 FAIXAS HORIZONTAIS ---
+  const estatisticasFaixasHorizontais = useMemo(() => {
+    const contagemLinhas = Array(LINHAS_QTD).fill(0);
+
+    const todas = [
+      ...cartelasFixas.map(c => c.selecionadas),
+      ...salvos
+    ];
+
+    todas.forEach(grade => {
+      grade.forEach((linha, lIdx) => {
+        linha.forEach((val) => {
+          if (val === 1 || val === 2) {
+            contagemLinhas[lIdx] += 1;
+          }
+        });
+      });
+    });
+
+    const faixas = contagemLinhas.map((qtd, linhaIdx) => {
+      const inicio = linhaIdx * COLUNAS_QTD + 1;
+      const fim = (linhaIdx + 1) * COLUNAS_QTD;
+      const inicioFmt = (inicio === 100 ? 0 : inicio).toString().padStart(2, "0");
+      const fimFmt = (fim === 100 ? 0 : fim).toString().padStart(2, "0");
+      return {
+        linhaIdx,
+        rotulo: `${inicioFmt}-${fimFmt}`,
+        qtd
+      };
+    });
+
+    const faixasMaisVazias = [...faixas].sort((a, b) => a.qtd - b.qtd);
+    const faixasTotalmenteZeradas = faixas.filter(f => f.qtd === 0);
+
+    return { faixas, faixasMaisVazias, faixasTotalmenteZeradas };
+  }, [cartelasFixas, salvos]);
+
+  // Alterna manualmente se uma faixa está travada vazia
+  const alternarTravaFaixaVazia = (linhaIdx: number) => {
+    setModoVazias('manual');
+    setFaixasTravadasVazias(prev => 
+      prev.includes(linhaIdx) 
+        ? prev.filter(idx => idx !== linhaIdx) 
+        : [...prev, linhaIdx]
+    );
+  };
+
   const alternarDezenaNoGabaritoAtivo = (valorBruto: number) => {
     let gabAlvoId: number;
 
@@ -444,33 +496,45 @@ export default function Gerador() {
     }));
   };
 
-  // EXPORTAÇÃO EM RODATÓRIA CONTÍNUA (RODA E VOLTA AO TOPO)
+  // EXPORTAÇÃO EM RODATÓRIA CONTÍNUA RESPEITANDO AS FAIXAS TRAVADAS
   const exportarTopParaGabarito = (quantidade: number) => {
-    const dezenasDisponiveis = estatisticas100.ordenadosPorUso.filter(item => item.qtd > 0);
+    const faixasBloqueadasIndices = new Set<number>();
+
+    if (modoVazias === 'manual') {
+      faixasTravadasVazias.forEach(idx => faixasBloqueadasIndices.add(idx));
+    } else {
+      const maisVazias = estatisticasFaixasHorizontais.faixasMaisVazias
+        .slice(0, Math.min(qtdFaixasAutoVazias, 19))
+        .map(f => f.linhaIdx);
+      maisVazias.forEach(idx => faixasBloqueadasIndices.add(idx));
+    }
+
+    // Filtra dezenas respeitando a exclusão das faixas travadas vazias
+    const dezenasDisponiveis = estatisticas100.ordenadosPorUso.filter(item => {
+      if (item.qtd <= 0) return false;
+      const linhaDaDezena = Math.floor((item.valorBruto - 1) / COLUNAS_QTD);
+      return !faixasBloqueadasIndices.has(linhaDaDezena);
+    });
 
     if (dezenasDisponiveis.length === 0) {
-      alert("Nenhuma dezena marcada nas cartelas para gerar gabarito!");
+      alert("Nenhuma dezena disponível nas faixas liberadas!");
       return;
     }
 
     const totalDisponiveis = dezenasDisponiveis.length;
-    const qtdReal = Math.min(Math.max(1, quantidade), 100);
+    const qtdReal = Math.min(Math.max(1, quantidade), totalDisponiveis);
 
     const selecionados: number[] = [];
     let idxAtual = ponteiroCarrossel;
 
-    // Percorre a lista em carrossel circular
     for (let i = 0; i < qtdReal; i++) {
       const dezenaItem = dezenasDisponiveis[idxAtual % totalDisponiveis];
-      
       if (!selecionados.includes(dezenaItem.valorBruto)) {
         selecionados.push(dezenaItem.valorBruto);
       }
-
       idxAtual = (idxAtual + 1) % totalDisponiveis;
     }
 
-    // Grava a nova posição onde o ponteiro parou
     setPonteiroCarrossel(idxAtual);
 
     const novaGrade = gerarGradeVazia();
@@ -509,7 +573,7 @@ export default function Gerador() {
           ...styles.janelaFlutuanteRaioX,
           left: isMobile ? 10 : raioXPos.x,
           top: isMobile ? 10 : raioXPos.y,
-          width: isMobile ? '95%' : 540,
+          width: isMobile ? '95%' : 600,
         }}>
           <div 
             onMouseDown={iniciarArrastoRaioX}
@@ -519,7 +583,7 @@ export default function Gerador() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ fontSize: 13 }}>✥</span>
               <span style={{ fontSize: 12, fontWeight: 900, color: '#0f172a' }}>
-                RAIO-X (CLIQUE P/ GABARITO • RODATÓRIA ATIVA)
+                RAIO-X • CONTROLE MANUAL DE FAIXAS VAZIAS (HORIZONTAIS)
               </span>
             </div>
             <button 
@@ -531,7 +595,90 @@ export default function Gerador() {
           </div>
 
           <div style={styles.corpoFlutuante}>
-            {/* Input e controle da Rodatória */}
+            
+            {/* PAINEL DE FAIXAS COM CONTROLE DE TRAVAS MANUAIS */}
+            <div style={{
+              background: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              borderRadius: 8,
+              padding: '8px 10px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 6
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                <span style={{ fontSize: 11, fontWeight: 900, color: '#1e293b', textTransform: 'uppercase' }}>
+                  🔒 Clique nas faixas que deseja DEIXAR VAZIAS nos gabaritos:
+                </span>
+                
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {faixasTravadasVazias.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setFaixasTravadasVazias([])}
+                      style={styles.btnDestravarTodas}
+                      title="Limpar todas as faixas travadas vazias"
+                    >
+                      🔓 Destravar Todas ({faixasTravadasVazias.length})
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // Modo automático: seleciona automaticamente as 3 mais vazias
+                      const top3 = estatisticasFaixasHorizontais.faixasMaisVazias.slice(0, 3).map(f => f.linhaIdx);
+                      setFaixasTravadasVazias(top3);
+                      setModoVazias('manual');
+                    }}
+                    style={styles.btnAutoTrava}
+                    title="Trava rapidamente as 3 faixas com menos saídas"
+                  >
+                    ⚡ Travar 3 Mais Fracas
+                  </button>
+                </div>
+              </div>
+
+              {/* Grid com todas as 20 faixas clicáveis */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 4, maxHeight: 110, overflowY: 'auto', padding: 2 }}>
+                {estatisticasFaixasHorizontais.faixas.map((f) => {
+                  const estaTravadaVazia = faixasTravadasVazias.includes(f.linhaIdx);
+
+                  return (
+                    <button
+                      key={f.linhaIdx}
+                      type="button"
+                      onClick={() => alternarTravaFaixaVazia(f.linhaIdx)}
+                      title={`Clique para ${estaTravadaVazia ? 'liberar' : 'travar vazia'} a faixa [${f.rotulo}] (${f.qtd}x marcações)`}
+                      style={{
+                        background: estaTravadaVazia ? '#fee2e2' : f.qtd === 0 ? '#fff1f2' : '#ffffff',
+                        border: estaTravadaVazia ? '2px solid #ef4444' : f.qtd === 0 ? '1px solid #fecdd3' : '1px solid #cbd5e1',
+                        color: estaTravadaVazia ? '#b91c1c' : f.qtd === 0 ? '#e11d48' : '#334155',
+                        fontSize: 10,
+                        fontWeight: 800,
+                        padding: '3px 4px',
+                        borderRadius: 4,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                      }}
+                    >
+                      <span>{f.rotulo}</span>
+                      <span style={{ fontSize: 9, opacity: 0.85 }}>
+                        {estaTravadaVazia ? '🔒' : `${f.qtd}x`}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#64748b' }}>
+                <span>Faixas travadas para NÃO entrar: <b>{faixasTravadasVazias.length} faixas</b></span>
+                <span>Modo de montagem: <b style={{ color: faixasTravadasVazias.length > 0 ? '#dc2626' : '#16a34a' }}>{faixasTravadasVazias.length > 0 ? 'Exclusão Fixa Ativa' : 'Livre (Todas Faixas)'}</b></span>
+              </div>
+            </div>
+
+            {/* BARRA DE GERAÇÃO EM CARROSSEL */}
             <div style={{ 
               display: 'flex', 
               gap: 8, 
@@ -539,13 +686,13 @@ export default function Gerador() {
               alignItems: 'center', 
               justifyContent: 'space-between',
               background: '#f8fafc',
-              padding: '6px 10px',
+              padding: '8px 10px',
               borderRadius: 8,
               border: '1px solid #e2e8f0'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ fontSize: 11, fontWeight: 800, color: '#475569' }}>
-                  Exportar:
+                  Pedir no Gabarito:
                 </span>
                 <input 
                   type="number"
@@ -554,8 +701,8 @@ export default function Gerador() {
                   value={qtdTopCustom}
                   onChange={(e) => setQtdTopCustom(Math.max(1, Math.min(100, Number(e.target.value) || 1)))}
                   style={{
-                    width: 52,
-                    padding: '3px 6px',
+                    width: 50,
+                    padding: '3px 4px',
                     fontSize: 12,
                     fontWeight: 800,
                     textAlign: 'center',
@@ -567,7 +714,7 @@ export default function Gerador() {
                   }}
                 />
                 <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>
-                  dezenas
+                  dezenas (girando nas faixas liberadas)
                 </span>
               </div>
 
@@ -580,7 +727,7 @@ export default function Gerador() {
                     color: '#ffffff',
                     border: 'none',
                     borderRadius: 6,
-                    padding: '5px 12px',
+                    padding: '6px 14px',
                     fontSize: 11,
                     fontWeight: 800,
                     cursor: 'pointer',
@@ -589,7 +736,7 @@ export default function Gerador() {
                     alignItems: 'center',
                     gap: 4
                   }}
-                  title="Gera o gabarito no fluxo contínuo (carrossel)"
+                  title="Gera o gabarito girando apenas nos espaços permitidos"
                 >
                   ⚡ Gerar Gabarito
                 </button>
@@ -620,6 +767,8 @@ export default function Gerador() {
             {/* Mapa 10x10 Interativo */}
             <div style={styles.gridMapaCalorFlutuante}>
               {estatisticas100.lista.map(item => {
+                const linhaDaDezena = Math.floor((item.valorBruto - 1) / COLUNAS_QTD);
+                const faixaBloqueada = faixasTravadasVazias.includes(linhaDaDezena);
                 const semUso = item.qtd === 0;
                 const maisUsado = item.qtd >= estatisticas100.maxQtd && item.qtd > 1;
 
@@ -628,24 +777,24 @@ export default function Gerador() {
                     key={item.numero}
                     type="button"
                     onClick={() => alternarDezenaNoGabaritoAtivo(item.valorBruto)}
-                    title={`Dezena ${item.numero} (usada ${item.qtd}x). Clique para marcar no Gabarito!`}
+                    title={`Dezena ${item.numero} (${item.qtd}x). ${faixaBloqueada ? '[FAIXA TRAVADA VAZIA]' : 'Clique para marcar no Gabarito!'}`}
                     style={{
                       ...styles.celulaMapaFlutuante,
-                      background: semUso ? '#f8fafc' : maisUsado ? '#dcfce7' : '#e0f2fe',
-                      borderColor: semUso ? '#e2e8f0' : maisUsado ? '#86efac' : '#bae6fd',
-                      opacity: semUso ? 0.4 : 1,
+                      background: faixaBloqueada ? '#fee2e2' : semUso ? '#f8fafc' : maisUsado ? '#dcfce7' : '#e0f2fe',
+                      borderColor: faixaBloqueada ? '#fca5a5' : semUso ? '#e2e8f0' : maisUsado ? '#86efac' : '#bae6fd',
+                      opacity: faixaBloqueada ? 0.35 : semUso ? 0.45 : 1,
                       cursor: 'pointer'
                     }}
                   >
-                    <span style={{ fontSize: 11, fontWeight: 800, color: semUso ? '#94a3b8' : maisUsado ? '#15803d' : '#0369a1' }}>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: faixaBloqueada ? '#b91c1c' : semUso ? '#94a3b8' : maisUsado ? '#15803d' : '#0369a1' }}>
                       {item.numero}
                     </span>
                     <span style={{
                       fontSize: 8,
                       fontWeight: 800,
-                      color: semUso ? '#94a3b8' : maisUsado ? '#166534' : '#1e40af'
+                      color: faixaBloqueada ? '#ef4444' : semUso ? '#94a3b8' : maisUsado ? '#166534' : '#1e40af'
                     }}>
-                      {item.qtd}x
+                      {faixaBloqueada ? '✕' : `${item.qtd}x`}
                     </span>
                   </button>
                 );
@@ -654,7 +803,7 @@ export default function Gerador() {
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, color: '#64748b' }}>
               <span>Zonas mortas: <b>{estatisticas100.naoUsados.length} dezenas</b></span>
-              <span>Ponteiro na fila: <b>Posição #{ponteiroCarrossel + 1}</b></span>
+              <span>Ponteiro carrossel: <b>Posição #{ponteiroCarrossel + 1}</b></span>
             </div>
           </div>
         </div>
@@ -891,6 +1040,26 @@ const styles = {
     fontSize: 13,
     cursor: 'pointer',
     boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)',
+  },
+  btnDestravarTodas: {
+    background: '#fee2e2',
+    color: '#b91c1c',
+    border: '1px solid #fca5a5',
+    borderRadius: 6,
+    padding: '3px 8px',
+    fontSize: 10,
+    fontWeight: 800,
+    cursor: 'pointer'
+  },
+  btnAutoTrava: {
+    background: '#f1f5f9',
+    color: '#334155',
+    border: '1px solid #cbd5e1',
+    borderRadius: 6,
+    padding: '3px 8px',
+    fontSize: 10,
+    fontWeight: 800,
+    cursor: 'pointer'
   },
   btnAdicionarCartelaFixa: {
     background: '#dbeafe',
