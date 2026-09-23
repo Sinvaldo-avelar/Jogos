@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 
 const COLUNAS_QTD = 5;
 const LINHAS_QTD = 20;
@@ -92,7 +92,6 @@ function CartaoMontarJogo({
         Escolhidos: {totalEscolhidos}
       </div>
 
-      {/* Grade com bloqueio total de ponteiro caso travada */}
       <div style={{
         ...styles.gradeSelecao,
         pointerEvents: estaTravada ? 'none' : 'auto',
@@ -163,9 +162,10 @@ export default function Gerador() {
   const [isMobile, setIsMobile] = useState(false);
   const [gabaritos, setGabaritos] = useState<Gabarito5x20[]>([]);
   const [travaGeral, setTravaGeral] = useState(false);
-
-  // Lista dinâmica de cartelas fixas 5x20
   const [cartelasFixas, setCartelasFixas] = useState<CartelaFixa5x20Item[]>([]);
+
+  // Estado para controlar a abertura do Modal Raio-X
+  const [modalRaioXAberto, setModalRaioXAberto] = useState(false);
 
   const gerarGradeVazia = () => Array(LINHAS_QTD).fill(0).map(() => Array(COLUNAS_QTD).fill(0));
 
@@ -198,35 +198,23 @@ export default function Gerador() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Gravação automática no LocalStorage
   useEffect(() => {
-    if (montado) {
-      localStorage.setItem(STORAGE_CARTELAS_FIXAS_KEY, JSON.stringify(cartelasFixas));
-    }
+    if (montado) localStorage.setItem(STORAGE_CARTELAS_FIXAS_KEY, JSON.stringify(cartelasFixas));
   }, [cartelasFixas, montado]);
 
   useEffect(() => {
-    if (montado) {
-      localStorage.setItem(STORAGE_CARTELAS_SALVAS_KEY, JSON.stringify(salvos));
-    }
+    if (montado) localStorage.setItem(STORAGE_CARTELAS_SALVAS_KEY, JSON.stringify(salvos));
   }, [salvos, montado]);
 
   useEffect(() => {
-    if (montado) {
-      localStorage.setItem(STORAGE_GABARITOS_KEY, JSON.stringify(gabaritos));
-    }
+    if (montado) localStorage.setItem(STORAGE_GABARITOS_KEY, JSON.stringify(gabaritos));
   }, [gabaritos, montado]);
 
   useEffect(() => {
-    if (montado) {
-      localStorage.setItem(STORAGE_TRAVA_GERAL_KEY, JSON.stringify(travaGeral));
-    }
+    if (montado) localStorage.setItem(STORAGE_TRAVA_GERAL_KEY, JSON.stringify(travaGeral));
   }, [travaGeral, montado]);
 
-  // Manipulação de cartelas fixas e travas
-  const alternarTravaGeral = () => {
-    setTravaGeral(prev => !prev);
-  };
+  const alternarTravaGeral = () => setTravaGeral(prev => !prev);
 
   const alternarTravaIndividual = (id: number) => {
     setCartelasFixas(prev => prev.map(c => 
@@ -283,7 +271,6 @@ export default function Gerador() {
     }));
   };
 
-  // Gestão de arrasto dos gabaritos com mouse
   const arrastoRef = useRef<{ id: number | null; startX: number; startY: number; origemX: number; origemY: number }>({
     id: null, startX: 0, startY: 0, origemX: 0, origemY: 0,
   });
@@ -355,6 +342,48 @@ export default function Gerador() {
     }));
   };
 
+  // --- LÓGICA DE CONTABILIZAÇÃO DAS 100 DEZENAS ---
+  const estatisticas100 = useMemo(() => {
+    const contadores: number[] = Array(100).fill(0);
+
+    // Contabiliza cartelas fixas da bancada
+    cartelasFixas.forEach(cartela => {
+      cartela.selecionadas.forEach((linha, lIdx) => {
+        linha.forEach((val, cIdx) => {
+          if (val === 1 || val === 2) {
+            const numero = lIdx * COLUNAS_QTD + cIdx + 1;
+            contadores[numero - 1] += 1;
+          }
+        });
+      });
+    });
+
+    // Contabiliza cartelas salvas no histórico
+    salvos.forEach(grade => {
+      grade.forEach((linha, lIdx) => {
+        linha.forEach((val, cIdx) => {
+          if (val === 1 || val === 2) {
+            const numero = lIdx * COLUNAS_QTD + cIdx + 1;
+            contadores[numero - 1] += 1;
+          }
+        });
+      });
+    });
+
+    const lista = contadores.map((qtd, idx) => {
+      const numReal = idx + 1;
+      const formatado = (numReal === 100 ? 0 : numReal).toString().padStart(2, "0");
+      return { numero: formatado, valorBruto: numReal, qtd };
+    });
+
+    const naoUsados = lista.filter(item => item.qtd === 0);
+    const maisUsados = [...lista].sort((a, b) => b.qtd - a.qtd).slice(0, 8);
+    const maxQtd = Math.max(...contadores, 1);
+    const totalJogos = cartelasFixas.length + salvos.length;
+
+    return { lista, naoUsados, maisUsados, maxQtd, totalJogos };
+  }, [cartelasFixas, salvos]);
+
   if (!montado) return null;
 
   const celulaEstilo = {
@@ -366,6 +395,124 @@ export default function Gerador() {
 
   return (
     <div style={{ ...styles.container, padding: isMobile ? '10px' : '40px 20px' }}>
+      
+      {/* MODAL RAIO-X DAS 100 DEZENAS */}
+      {modalRaioXAberto && (
+        <div style={styles.modalBackdrop}>
+          <div style={styles.modalCard}>
+            <div style={styles.modalHeader}>
+              <div>
+                <h2 style={{ fontSize: 18, fontWeight: 900, color: '#0f172a', margin: 0 }}>
+                  📊 Raio-X das 100 Dezenas
+                </h2>
+                <span style={{ fontSize: 12, color: '#64748b' }}>
+                  Frequência calculada em {estatisticas100.totalJogos} cartelas (ativas na mesa + salvas)
+                </span>
+              </div>
+              <button 
+                onClick={() => setModalRaioXAberto(false)} 
+                style={styles.modalBtnFechar}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={styles.modalBody}>
+              {/* Cards de Métricas */}
+              <div style={styles.resumoGrid}>
+                <div style={styles.resumoCard}>
+                  <span style={styles.resumoLabel}>Cobertura do Volante</span>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                    <span style={{ fontSize: 24, fontWeight: 900, color: '#0f172a' }}>
+                      {100 - estatisticas100.naoUsados.length}
+                    </span>
+                    <span style={{ fontSize: 12, color: '#64748b' }}>/ 100 ativas</span>
+                  </div>
+                </div>
+
+                <div style={{ ...styles.resumoCard, borderLeft: '4px solid #ef4444' }}>
+                  <span style={{ ...styles.resumoLabel, color: '#ef4444' }}>Zonas Mortas (0 usos)</span>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                    <span style={{ fontSize: 24, fontWeight: 900, color: '#ef4444' }}>
+                      {estatisticas100.naoUsados.length}
+                    </span>
+                    <span style={{ fontSize: 12, color: '#64748b' }}>dezenas fora</span>
+                  </div>
+                </div>
+
+                <div style={{ ...styles.resumoCard, borderLeft: '4px solid #16a34a' }}>
+                  <span style={{ ...styles.resumoLabel, color: '#16a34a' }}>Mais Marcadas</span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+                    {estatisticas100.maisUsados.filter(i => i.qtd > 0).slice(0, 4).map(i => (
+                      <span key={i.numero} style={styles.tagDestaque}>
+                        {i.numero}: <b>{i.qtd}x</b>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Grelha 10x10 Completa com Badges */}
+              <div>
+                <h4 style={{ fontSize: 13, fontWeight: 800, color: '#334155', marginBottom: 8, textTransform: 'uppercase' }}>
+                  Mapa de Ocorrências (Dezenas 01 a 00)
+                </h4>
+                <div style={styles.gridMapaCalor}>
+                  {estatisticas100.lista.map(item => {
+                    const semUso = item.qtd === 0;
+                    const maisUsado = item.qtd >= estatisticas100.maxQtd && item.qtd > 1;
+
+                    return (
+                      <div
+                        key={item.numero}
+                        style={{
+                          ...styles.celulaMapa,
+                          background: semUso ? '#f8fafc' : maisUsado ? '#dcfce7' : '#e0f2fe',
+                          borderColor: semUso ? '#e2e8f0' : maisUsado ? '#86efac' : '#bae6fd',
+                          opacity: semUso ? 0.45 : 1,
+                        }}
+                      >
+                        <span style={{ fontSize: 13, fontWeight: 800, color: semUso ? '#94a3b8' : maisUsado ? '#15803d' : '#0369a1' }}>
+                          {item.numero}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: 9,
+                            fontWeight: 800,
+                            padding: '1px 3px',
+                            borderRadius: 3,
+                            background: semUso ? '#f1f5f9' : maisUsado ? '#bbf7d0' : '#bfdbfe',
+                            color: semUso ? '#94a3b8' : maisUsado ? '#166534' : '#1e40af'
+                          }}
+                        >
+                          {item.qtd}x
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Lista dos números com 0 utilizações */}
+              {estatisticas100.naoUsados.length > 0 && (
+                <div style={styles.blocoZonasMortas}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: '#b91c1c', textTransform: 'uppercase' }}>
+                    Dezenas Esquecidas (Zero Utilizações):
+                  </span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
+                    {estatisticas100.naoUsados.map(item => (
+                      <span key={item.numero} style={styles.tagZonaMorta}>
+                        {item.numero}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Camada das Cartelas Gabarito Flutuantes Transparentes (5x20) */}
       {gabaritos.map((gab, idx) => {
         const cor = CORES_GABARITO[gab.corIdx];
@@ -440,6 +587,16 @@ export default function Gerador() {
         </button>
 
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          {/* Botão de Abertura do Raio-X */}
+          <button
+            type="button"
+            onClick={() => setModalRaioXAberto(true)}
+            style={styles.btnRaioX}
+            title="Ver frequência e contagem de todas as 100 dezenas"
+          >
+            📊 Raio-X das 100 Dezenas
+          </button>
+
           {/* Botão de Trava Geral */}
           <button
             type="button"
@@ -575,6 +732,17 @@ const styles = {
     boxShadow: '0 2px 5px rgba(0,0,0,0.06)',
     transition: 'all 0.15s ease'
   },
+  btnRaioX: {
+    background: '#0284c7',
+    color: '#ffffff',
+    border: '1px solid #0369a1',
+    borderRadius: 8,
+    padding: '10px 16px',
+    fontWeight: 800,
+    fontSize: 13,
+    cursor: 'pointer',
+    boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)',
+  },
   btnAdicionarCartelaFixa: {
     background: '#dbeafe',
     color: '#1d4ed8',
@@ -611,4 +779,115 @@ const styles = {
   alcaGabarito: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', cursor: 'grab', background: '#ffffff', padding: '4px 8px', borderRadius: 6, border: '1px solid #cbd5e1', userSelect: 'none' as const, pointerEvents: 'auto' as const, boxShadow: '0 2px 5px rgba(0,0,0,0.1)' },
   badgeContadorGabarito: { fontSize: 11, fontWeight: 900, background: '#f1f5f9', padding: '1px 6px', borderRadius: 8, color: '#334155' },
   btnAcaoMini: { background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 4, width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 900, cursor: 'pointer', padding: 0, color: '#475569' },
+
+  // Estilos do Modal Raio-X
+  modalBackdrop: {
+    position: 'fixed' as const,
+    inset: 0,
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    backdropFilter: 'blur(3px)',
+    zIndex: 10000,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16
+  },
+  modalCard: {
+    background: '#ffffff',
+    borderRadius: 16,
+    width: '100%',
+    maxWidth: 780,
+    maxHeight: '90vh',
+    display: 'flex',
+    flexDirection: 'column' as const,
+    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)',
+    border: '1px solid #e2e8f0',
+    overflow: 'hidden'
+  },
+  modalHeader: {
+    padding: '16px 20px',
+    borderBottom: '1px solid #e2e8f0',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    background: '#f8fafc'
+  },
+  modalBtnFechar: {
+    background: '#fee2e2',
+    color: '#ef4444',
+    border: 'none',
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    fontWeight: 900,
+    cursor: 'pointer',
+    fontSize: 13
+  },
+  modalBody: {
+    padding: 20,
+    overflowY: 'auto' as const,
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 20
+  },
+  resumoGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+    gap: 12
+  },
+  resumoCard: {
+    background: '#f8fafc',
+    padding: 12,
+    borderRadius: 10,
+    border: '1px solid #e2e8f0'
+  },
+  resumoLabel: {
+    fontSize: 11,
+    fontWeight: 800,
+    color: '#64748b',
+    textTransform: 'uppercase' as const,
+    display: 'block'
+  },
+  tagDestaque: {
+    background: '#ffffff',
+    border: '1px solid #cbd5e1',
+    borderRadius: 4,
+    padding: '2px 6px',
+    fontSize: 11,
+    color: '#1e293b'
+  },
+  gridMapaCalor: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(10, 1fr)',
+    gap: 4,
+    background: '#f8fafc',
+    padding: 12,
+    borderRadius: 10,
+    border: '1px solid #e2e8f0'
+  },
+  celulaMapa: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '4px 2px',
+    borderRadius: 6,
+    border: '1px solid transparent',
+    transition: 'all 0.15s ease'
+  },
+  blocoZonasMortas: {
+    background: '#fff1f2',
+    border: '1px solid #fecdd3',
+    borderRadius: 10,
+    padding: 12
+  },
+  tagZonaMorta: {
+    background: '#fee2e2',
+    color: '#991b1b',
+    fontSize: 11,
+    fontWeight: 800,
+    padding: '2px 6px',
+    borderRadius: 4,
+    border: '1px solid #fca5a5'
+  }
 };
