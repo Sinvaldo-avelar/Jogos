@@ -164,12 +164,13 @@ export default function Gerador() {
   const [travaGeral, setTravaGeral] = useState(false);
   const [cartelasFixas, setCartelasFixas] = useState<CartelaFixa5x20Item[]>([]);
 
-  // Estado do Raio-X Flutuante
+  // Estados do Raio-X
   const [painelRaioXAberto, setPainelRaioXAberto] = useState(false);
   const [raioXPos, setRaioXPos] = useState({ x: 40, y: 100 });
-
-  // Estado da Quantidade Dinâmica para Exportação do Gabarito
   const [qtdTopCustom, setQtdTopCustom] = useState<number>(20);
+
+  // PONTEIRO DA RODATÓRIA CONTÍNUA (BUFFER CIRCULAR)
+  const [ponteiroCarrossel, setPonteiroCarrossel] = useState<number>(0);
 
   const gerarGradeVazia = () => Array(LINHAS_QTD).fill(0).map(() => Array(COLUNAS_QTD).fill(0));
 
@@ -443,20 +444,37 @@ export default function Gerador() {
     }));
   };
 
+  // EXPORTAÇÃO EM RODATÓRIA CONTÍNUA (RODA E VOLTA AO TOPO)
   const exportarTopParaGabarito = (quantidade: number) => {
-    const qtdReal = Math.max(1, Math.min(100, quantidade));
-    const topSelecionados = estatisticas100.ordenadosPorUso
-      .filter(item => item.qtd > 0)
-      .slice(0, qtdReal)
-      .map(item => item.valorBruto);
+    const dezenasDisponiveis = estatisticas100.ordenadosPorUso.filter(item => item.qtd > 0);
 
-    if (topSelecionados.length === 0) {
-      alert("Nenhuma dezena marcada ainda para exportar!");
+    if (dezenasDisponiveis.length === 0) {
+      alert("Nenhuma dezena marcada nas cartelas para gerar gabarito!");
       return;
     }
 
+    const totalDisponiveis = dezenasDisponiveis.length;
+    const qtdReal = Math.min(Math.max(1, quantidade), 100);
+
+    const selecionados: number[] = [];
+    let idxAtual = ponteiroCarrossel;
+
+    // Percorre a lista em carrossel circular
+    for (let i = 0; i < qtdReal; i++) {
+      const dezenaItem = dezenasDisponiveis[idxAtual % totalDisponiveis];
+      
+      if (!selecionados.includes(dezenaItem.valorBruto)) {
+        selecionados.push(dezenaItem.valorBruto);
+      }
+
+      idxAtual = (idxAtual + 1) % totalDisponiveis;
+    }
+
+    // Grava a nova posição onde o ponteiro parou
+    setPonteiroCarrossel(idxAtual);
+
     const novaGrade = gerarGradeVazia();
-    topSelecionados.forEach(num => {
+    selecionados.forEach(num => {
       const linha = Math.floor((num - 1) / COLUNAS_QTD);
       const col = (num - 1) % COLUNAS_QTD;
       novaGrade[linha][col] = 1;
@@ -464,8 +482,8 @@ export default function Gerador() {
 
     const novoGab: Gabarito5x20 = {
       id: Date.now(),
-      x: 150 + (gabaritos.length % 4) * 30,
-      y: 120 + (gabaritos.length % 4) * 30,
+      x: 150 + (gabaritos.length % 4) * 35,
+      y: 120 + (gabaritos.length % 4) * 35,
       valores: novaGrade,
       corIdx: gabaritos.length % CORES_GABARITO.length,
     };
@@ -501,7 +519,7 @@ export default function Gerador() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ fontSize: 13 }}>✥</span>
               <span style={{ fontSize: 12, fontWeight: 900, color: '#0f172a' }}>
-                RAIO-X 100 DEZENAS (CLIQUE NO NÚMERO P/ GABARITO)
+                RAIO-X (CLIQUE P/ GABARITO • RODATÓRIA ATIVA)
               </span>
             </div>
             <button 
@@ -513,7 +531,7 @@ export default function Gerador() {
           </div>
 
           <div style={styles.corpoFlutuante}>
-            {/* Input dinâmico de quantidade para gerar gabarito */}
+            {/* Input e controle da Rodatória */}
             <div style={{ 
               display: 'flex', 
               gap: 8, 
@@ -527,7 +545,7 @@ export default function Gerador() {
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ fontSize: 11, fontWeight: 800, color: '#475569' }}>
-                  Exportar Top:
+                  Exportar:
                 </span>
                 <input 
                   type="number"
@@ -536,7 +554,7 @@ export default function Gerador() {
                   value={qtdTopCustom}
                   onChange={(e) => setQtdTopCustom(Math.max(1, Math.min(100, Number(e.target.value) || 1)))}
                   style={{
-                    width: 54,
+                    width: 52,
                     padding: '3px 6px',
                     fontSize: 12,
                     fontWeight: 800,
@@ -553,26 +571,50 @@ export default function Gerador() {
                 </span>
               </div>
 
-              <button 
-                type="button" 
-                onClick={() => exportarTopParaGabarito(qtdTopCustom)} 
-                style={{
-                  background: '#0284c7',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: 6,
-                  padding: '5px 12px',
-                  fontSize: 11,
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                  boxShadow: '0 2px 4px rgba(2, 132, 199, 0.25)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4
-                }}
-              >
-                ⚡ Gerar Gabarito
-              </button>
+              <div style={{ display: 'flex', gap: 4 }}>
+                <button 
+                  type="button" 
+                  onClick={() => exportarTopParaGabarito(qtdTopCustom)} 
+                  style={{
+                    background: '#0284c7',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: 6,
+                    padding: '5px 12px',
+                    fontSize: 11,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 4px rgba(2, 132, 199, 0.25)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4
+                  }}
+                  title="Gera o gabarito no fluxo contínuo (carrossel)"
+                >
+                  ⚡ Gerar Gabarito
+                </button>
+
+                <button 
+                  type="button" 
+                  onClick={() => {
+                    setPonteiroCarrossel(0);
+                    alert("Rodatória reiniciada! O próximo gabarito começará do Top #1.");
+                  }} 
+                  style={{
+                    background: '#fff',
+                    color: '#475569',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: 6,
+                    padding: '5px 8px',
+                    fontSize: 11,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                  }}
+                  title="Reinicia a contagem do carrossel para o 1º colocado"
+                >
+                  ↺ Reset
+                </button>
+              </div>
             </div>
 
             {/* Mapa 10x10 Interativo */}
@@ -612,7 +654,7 @@ export default function Gerador() {
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, color: '#64748b' }}>
               <span>Zonas mortas: <b>{estatisticas100.naoUsados.length} dezenas</b></span>
-              <span>Total de jogos na conta: <b>{estatisticas100.totalJogos}</b></span>
+              <span>Ponteiro na fila: <b>Posição #{ponteiroCarrossel + 1}</b></span>
             </div>
           </div>
         </div>
