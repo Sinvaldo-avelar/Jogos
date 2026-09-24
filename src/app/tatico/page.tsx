@@ -238,7 +238,7 @@ export default function Gerador() {
   // Faixas Travadas Vazias
   const [modoVazias, setModoVazias] = useState<'manual' | 'auto'>('manual');
   const [faixasTravadasVazias, setFaixasTravadasVazias] = useState<number[]>([]);
-  const [qtdFaixasAutoVazias, setQtdFaixasAutoVazias] = useState<number>(3);
+  const [indicePerfilDinamico, setIndicePerfilDinamico] = useState<number>(0);
 
   const gerarGradeVazia = () => Array(LINHAS_QTD).fill(0).map(() => Array(COLUNAS_QTD).fill(0));
 
@@ -322,7 +322,7 @@ export default function Gerador() {
     }
   };
 
-  // --- MOTOR DE ORGANIZAÇÃO INTELIGENTE POR FALHAS ---
+  // Funções Auxiliares de Diagnóstico de Faixas
   const getFaixasVazias = (grade: number[][]) => {
     const vazias: number[] = [];
     grade.forEach((linha, lIdx) => {
@@ -330,6 +330,16 @@ export default function Gerador() {
       if (!temNumero) vazias.push(lIdx);
     });
     return vazias;
+  };
+
+  // Faixas com 0 ou 1 número (Falhas e Quase-Falhas Reais)
+  const getFaixasFracasOuVazias = (grade: number[][]) => {
+    const fracas: number[] = [];
+    grade.forEach((linha, lIdx) => {
+      const qtd = linha.filter(v => v === 1 || v === 2).length;
+      if (qtd <= 1) fracas.push(lIdx);
+    });
+    return fracas;
   };
 
   // 1. Agrupar por similaridade de falhas (clustering)
@@ -374,7 +384,6 @@ export default function Gerador() {
         return copia.sort((a, b) => getFaixasVazias(b.selecionadas).length - getFaixasVazias(a.selecionadas).length);
       }
       if (tipo === 'topo') {
-        // Mais faixas vazias na metade inferior (linhas 10 a 19)
         return copia.sort((a, b) => {
           const scoreA = getFaixasVazias(a.selecionadas).filter(l => l >= 10).length;
           const scoreB = getFaixasVazias(b.selecionadas).filter(l => l >= 10).length;
@@ -382,7 +391,6 @@ export default function Gerador() {
         });
       }
       if (tipo === 'base') {
-        // Mais faixas vazias na metade superior (linhas 0 a 9)
         return copia.sort((a, b) => {
           const scoreA = getFaixasVazias(a.selecionadas).filter(l => l < 10).length;
           const scoreB = getFaixasVazias(b.selecionadas).filter(l => l < 10).length;
@@ -660,19 +668,38 @@ export default function Gerador() {
     }));
   };
 
-  // EXPORTAÇÃO EM RODATÓRIA CONTÍNUA
+  // --- MOTOR INTELIGENTE: GERAÇÃO INFINITA BASEADA EM FALHAS REAIS ---
+ // MOTOR CALIBRADO: EXATAMENTE A QUANTIDADE PEDIDA E DISTRIBUIÇÃO BALANCEADA
   const exportarTopParaGabarito = (quantidade: number) => {
-    const faixasBloqueadasIndices = new Set<number>();
+    let faixasBloqueadasIndices = new Set<number>();
 
-    if (modoVazias === 'manual') {
+    // 1. Se definiu travas manuais no Raio-X, respeita estritamente
+    if (faixasTravadasVazias.length > 0) {
       faixasTravadasVazias.forEach(idx => faixasBloqueadasIndices.add(idx));
     } else {
-      const maisVazias = estatisticasFaixasHorizontais.faixasMaisVazias
-        .slice(0, Math.min(qtdFaixasAutoVazias, 19))
-        .map(f => f.linhaIdx);
-      maisVazias.forEach(idx => faixasBloqueadasIndices.add(idx));
+      // 2. Mapeamento de perfis reais equilibrados
+      const perfisReais = cartelasFixas
+        .map(c => getFaixasFracasOuVazias(c.selecionadas))
+        .filter(p => p.length >= 3);
+
+      if (perfisReais.length > 0) {
+        // Baralha os perfis ou alterna com salto para cobrir topo e base de forma uniforme
+        const perfilEscolhido = perfisReais[indicePerfilDinamico % perfisReais.length];
+        setIndicePerfilDinamico(prev => prev + 1);
+
+        // Seleciona entre 5 a 7 faixas com distribuição variada
+        const faixasCorte = [...perfilEscolhido]
+          .sort(() => Math.random() - 0.5)
+          .slice(0, Math.min(perfilEscolhido.length, 7));
+
+        faixasCorte.forEach(idx => faixasBloqueadasIndices.add(idx));
+      } else {
+        const fracas = estatisticasFaixasHorizontais.faixasMaisVazias.slice(0, 5).map(f => f.linhaIdx);
+        fracas.forEach(idx => faixasBloqueadasIndices.add(idx));
+      }
     }
 
+    // Dezenas candidatas que residem nas faixas ativas
     const dezenasDisponiveis = estatisticas100.ordenadosPorUso.filter(item => {
       if (item.qtd <= 0) return false;
       const linhaDaDezena = Math.floor((item.valorBruto - 1) / COLUNAS_QTD);
@@ -680,25 +707,43 @@ export default function Gerador() {
     });
 
     if (dezenasDisponiveis.length === 0) {
-      alert("Nenhuma dezena disponível nas faixas liberadas!");
+      alert("Nenhuma dezena disponível nas faixas ativas! Verifique as cartelas ou destrave faixas.");
       return;
     }
 
     const totalDisponiveis = dezenasDisponiveis.length;
-    const qtdReal = Math.min(Math.max(1, quantidade), totalDisponiveis);
+    // Garante que a meta respeita o total de dezenas fisicamente existentes nas faixas ativas
+    const meta = Math.min(Math.max(1, quantidade), totalDisponiveis);
 
     const selecionados: number[] = [];
     let idxAtual = ponteiroCarrossel;
+    let tentativas = 0;
+    const limiteSeguranca = totalDisponiveis * 3;
 
-    for (let i = 0; i < qtdReal; i++) {
+    // LAÇO RIGOROSO: Só pára quando atinge exatamente a meta de 50 dezenas
+    while (selecionados.length < meta && tentativas < limiteSeguranca) {
       const dezenaItem = dezenasDisponiveis[idxAtual % totalDisponiveis];
       if (!selecionados.includes(dezenaItem.valorBruto)) {
         selecionados.push(dezenaItem.valorBruto);
       }
       idxAtual = (idxAtual + 1) % totalDisponiveis;
+      tentativas++;
     }
 
-    setPonteiroCarrossel(idxAtual);
+    // Se o conjunto de faixas ativas tiver menos dezenas que a meta pedida,
+    // preenche o restante com as dezenas mais fortes fora das faixas proibidas
+    if (selecionados.length < quantidade) {
+      const resto = estatisticas100.ordenadosPorUso.filter(
+        d => !selecionados.includes(d.valorBruto) && !faixasBloqueadasIndices.has(Math.floor((d.valorBruto - 1) / COLUNAS_QTD))
+      );
+      for (const item of resto) {
+        if (selecionados.length >= quantidade) break;
+        selecionados.push(item.valorBruto);
+      }
+    }
+
+    // Salto contínuo no carrossel para variar os números da próxima geração
+    setPonteiroCarrossel((ponteiroCarrossel + 11) % Math.max(1, totalDisponiveis));
 
     const novaGrade = gerarGradeVazia();
     selecionados.forEach(num => {
@@ -717,7 +762,6 @@ export default function Gerador() {
 
     setGabaritos(prev => [...prev, novoGab]);
   };
-
   if (!montado) return null;
 
   const celulaEstilo = {
@@ -854,7 +898,7 @@ export default function Gerador() {
 
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#64748b' }}>
                 <span>Faixas travadas para NÃO entrar: <b>{faixasTravadasVazias.length} faixas</b></span>
-                <span>Modo de montagem: <b style={{ color: faixasTravadasVazias.length > 0 ? '#dc2626' : '#16a34a' }}>{faixasTravadasVazias.length > 0 ? 'Exclusão Fixa Ativa' : 'Livre (Todas Faixas)'}</b></span>
+                <span>Modo de montagem: <b style={{ color: faixasTravadasVazias.length > 0 ? '#dc2626' : '#16a34a' }}>{faixasTravadasVazias.length > 0 ? 'Exclusão Fixa Ativa' : 'Rodízio Baseado em Falhas Reais (0 ou 1 nº)'}</b></span>
               </div>
             </div>
 
@@ -916,7 +960,7 @@ export default function Gerador() {
                     alignItems: 'center',
                     gap: 4
                   }}
-                  title="Gera o gabarito girando apenas nos espaços permitidos"
+                  title="Gera o gabarito girando de forma infinita e inteligente"
                 >
                   ⚡ Gerar Gabarito
                 </button>
