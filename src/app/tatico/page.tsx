@@ -226,13 +226,16 @@ export default function Gerador() {
   const [travaGeral, setTravaGeral] = useState(false);
   const [cartelasFixas, setCartelasFixas] = useState<CartelaFixa5x20Item[]>([]);
 
+  // Expansão do Relatório de Auditoria no Gabarito
+  const [gabExpandidoId, setGabExpandidoId] = useState<number | null>(null);
+
   // Troca a Longa Distância
   const [cartelaSelecionadaParaTroca, setCartelaSelecionadaParaTroca] = useState<number | null>(null);
 
   // Estados do Raio-X
   const [painelRaioXAberto, setPainelRaioXAberto] = useState(false);
   const [raioXPos, setRaioXPos] = useState({ x: 40, y: 100 });
-  const [qtdTopCustom, setQtdTopCustom] = useState<number>(20);
+  const [qtdTopCustom, setQtdTopCustom] = useState<number>(50);
   const [ponteiroCarrossel, setPonteiroCarrossel] = useState<number>(0);
 
   // Faixas Travadas Vazias
@@ -332,7 +335,6 @@ export default function Gerador() {
     return vazias;
   };
 
-  // Faixas com 0 ou 1 número (Falhas e Quase-Falhas Reais)
   const getFaixasFracasOuVazias = (grade: number[][]) => {
     const fracas: number[] = [];
     grade.forEach((linha, lIdx) => {
@@ -668,26 +670,21 @@ export default function Gerador() {
     }));
   };
 
-  // --- MOTOR INTELIGENTE: GERAÇÃO INFINITA BASEADA EM FALHAS REAIS ---
- // MOTOR CALIBRADO: EXATAMENTE A QUANTIDADE PEDIDA E DISTRIBUIÇÃO BALANCEADA
+  // --- MOTOR INTELIGENTE: GERAÇÃO BALANCEADA E EXATIDÃO DE DEZENAS ---
   const exportarTopParaGabarito = (quantidade: number) => {
     let faixasBloqueadasIndices = new Set<number>();
 
-    // 1. Se definiu travas manuais no Raio-X, respeita estritamente
     if (faixasTravadasVazias.length > 0) {
       faixasTravadasVazias.forEach(idx => faixasBloqueadasIndices.add(idx));
     } else {
-      // 2. Mapeamento de perfis reais equilibrados
       const perfisReais = cartelasFixas
         .map(c => getFaixasFracasOuVazias(c.selecionadas))
         .filter(p => p.length >= 3);
 
       if (perfisReais.length > 0) {
-        // Baralha os perfis ou alterna com salto para cobrir topo e base de forma uniforme
         const perfilEscolhido = perfisReais[indicePerfilDinamico % perfisReais.length];
         setIndicePerfilDinamico(prev => prev + 1);
 
-        // Seleciona entre 5 a 7 faixas com distribuição variada
         const faixasCorte = [...perfilEscolhido]
           .sort(() => Math.random() - 0.5)
           .slice(0, Math.min(perfilEscolhido.length, 7));
@@ -699,7 +696,6 @@ export default function Gerador() {
       }
     }
 
-    // Dezenas candidatas que residem nas faixas ativas
     const dezenasDisponiveis = estatisticas100.ordenadosPorUso.filter(item => {
       if (item.qtd <= 0) return false;
       const linhaDaDezena = Math.floor((item.valorBruto - 1) / COLUNAS_QTD);
@@ -707,12 +703,11 @@ export default function Gerador() {
     });
 
     if (dezenasDisponiveis.length === 0) {
-      alert("Nenhuma dezena disponível nas faixas ativas! Verifique as cartelas ou destrave faixas.");
+      alert("Nenhuma dezena disponível nas faixas ativas! Verifique as travas ou preencha as cartelas.");
       return;
     }
 
     const totalDisponiveis = dezenasDisponiveis.length;
-    // Garante que a meta respeita o total de dezenas fisicamente existentes nas faixas ativas
     const meta = Math.min(Math.max(1, quantidade), totalDisponiveis);
 
     const selecionados: number[] = [];
@@ -720,7 +715,6 @@ export default function Gerador() {
     let tentativas = 0;
     const limiteSeguranca = totalDisponiveis * 3;
 
-    // LAÇO RIGOROSO: Só pára quando atinge exatamente a meta de 50 dezenas
     while (selecionados.length < meta && tentativas < limiteSeguranca) {
       const dezenaItem = dezenasDisponiveis[idxAtual % totalDisponiveis];
       if (!selecionados.includes(dezenaItem.valorBruto)) {
@@ -730,8 +724,6 @@ export default function Gerador() {
       tentativas++;
     }
 
-    // Se o conjunto de faixas ativas tiver menos dezenas que a meta pedida,
-    // preenche o restante com as dezenas mais fortes fora das faixas proibidas
     if (selecionados.length < quantidade) {
       const resto = estatisticas100.ordenadosPorUso.filter(
         d => !selecionados.includes(d.valorBruto) && !faixasBloqueadasIndices.has(Math.floor((d.valorBruto - 1) / COLUNAS_QTD))
@@ -742,7 +734,6 @@ export default function Gerador() {
       }
     }
 
-    // Salto contínuo no carrossel para variar os números da próxima geração
     setPonteiroCarrossel((ponteiroCarrossel + 11) % Math.max(1, totalDisponiveis));
 
     const novaGrade = gerarGradeVazia();
@@ -762,6 +753,44 @@ export default function Gerador() {
 
     setGabaritos(prev => [...prev, novoGab]);
   };
+
+  // --- MOTOR DE AUDITORIA REVERSA: COMPARA GABARITO COM TODAS AS CARTELAS FIXAS ---
+  const auditarGabaritoContraCartelas = (gabValores: number[][]) => {
+    const resultados: { numeroCartela: number; acertos: number; ehPremiada: boolean }[] = [];
+
+    cartelasFixas.forEach(c => {
+      let acertos = 0;
+      let marcadasNaCartela = 0;
+
+      for (let l = 0; l < LINHAS_QTD; l++) {
+        for (let col = 0; col < COLUNAS_QTD; col++) {
+          const naCartela = c.selecionadas[l][col] === 1 || c.selecionadas[l][col] === 2;
+          const noGabarito = gabValores[l][col] === 1;
+
+          if (naCartela) marcadasNaCartela++;
+          if (naCartela && noGabarito) acertos++;
+        }
+      }
+
+      // Só audita se a cartela estiver realmente preenchida (ex: 20 números ou mais)
+      if (marcadasNaCartela >= 15) {
+        // Faixas de premiação oficiais da Lotomania: 20, 19, 18, 17, 16, 15 ou 0 pontos!
+        const ehPremiada = acertos >= 15 || acertos === 0;
+        resultados.push({
+          numeroCartela: c.numeroCartela,
+          acertos,
+          ehPremiada
+        });
+      }
+    });
+
+    const premiadas = resultados
+      .filter(r => r.ehPremiada)
+      .sort((a, b) => b.acertos - a.acertos);
+
+    return { totalAuditadas: resultados.length, resultados, premiadas };
+  };
+
   if (!montado) return null;
 
   const celulaEstilo = {
@@ -898,7 +927,7 @@ export default function Gerador() {
 
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#64748b' }}>
                 <span>Faixas travadas para NÃO entrar: <b>{faixasTravadasVazias.length} faixas</b></span>
-                <span>Modo de montagem: <b style={{ color: faixasTravadasVazias.length > 0 ? '#dc2626' : '#16a34a' }}>{faixasTravadasVazias.length > 0 ? 'Exclusão Fixa Ativa' : 'Rodízio Baseado em Falhas Reais (0 ou 1 nº)'}</b></span>
+                <span>Modo de montagem: <b style={{ color: faixasTravadasVazias.length > 0 ? '#dc2626' : '#16a34a' }}>{faixasTravadasVazias.length > 0 ? 'Exclusão Fixa Ativa' : 'Rodízio Equilibrado de Falhas Reais'}</b></span>
               </div>
             </div>
 
@@ -1033,13 +1062,17 @@ export default function Gerador() {
         </div>
       )}
 
-      {/* Camada dos Gabaritos Flutuantes */}
+      {/* Camada dos Gabaritos Flutuantes COM AUDITORIA REVERSA */}
       {gabaritos.map((gab, idx) => {
         const cor = CORES_GABARITO[gab.corIdx];
         const marcadosNoGabarito = gab.valores.reduce(
           (acc, linha) => acc + linha.filter(v => v > 0).length,
           0
         );
+
+        // Auditoria instantânea deste gabarito contra todas as cartelas da bancada
+        const auditoria = auditarGabaritoContraCartelas(gab.valores);
+        const estaExpandido = gabExpandidoId === gab.id;
 
         return (
           <div
@@ -1051,14 +1084,36 @@ export default function Gerador() {
               border: `2px dashed ${cor.borda}`,
             }}
           >
+            {/* Alça do Gabarito */}
             <div
               onMouseDown={(e) => iniciarArrastoGabarito(e, gab)}
               style={styles.alcaGabarito}
               title="Clique e arraste para movimentar este gabarito"
             >
-              <span style={{ fontSize: 11, fontWeight: 900, color: cor.borda }}>G{idx + 1}</span>
-              <span style={styles.badgeContadorGabarito}>{marcadosNoGabarito}</span>
-              <div style={{ display: 'flex', gap: 3 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ fontSize: 11, fontWeight: 900, color: cor.borda }}>G{idx + 1}</span>
+                <span style={styles.badgeContadorGabarito}>{marcadosNoGabarito}</span>
+              </div>
+
+              <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => setGabExpandidoId(prev => prev === gab.id ? null : gab.id)}
+                  style={{
+                    background: auditoria.premiadas.length > 0 ? '#fef3c7' : '#f1f5f9',
+                    border: auditoria.premiadas.length > 0 ? '1px solid #f59e0b' : '1px solid #cbd5e1',
+                    borderRadius: 4,
+                    padding: '2px 5px',
+                    fontSize: 9,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    color: auditoria.premiadas.length > 0 ? '#b45309' : '#475569'
+                  }}
+                  title="Ver auditoria detalhada de pontuação de todas as cartelas"
+                >
+                  {estaExpandido ? "▲ Fechar" : `🏆 ${auditoria.premiadas.length}`}
+                </button>
+
                 {marcadosNoGabarito > 0 && (
                   <button type="button" onClick={() => limparGabarito(gab.id)} style={styles.btnAcaoMini} title="Limpar">↺</button>
                 )}
@@ -1066,6 +1121,90 @@ export default function Gerador() {
               </div>
             </div>
 
+            {/* SELO DE AUDITORIA REVERSA INSTANTÂNEA */}
+            <div style={{
+              width: '100%',
+              background: auditoria.premiadas.length > 0 ? '#ecfdf5' : '#ffffff',
+              border: auditoria.premiadas.length > 0 ? '1px solid #6ee7b7' : '1px solid #e2e8f0',
+              borderRadius: 6,
+              padding: '4px 6px',
+              fontSize: 10,
+              fontWeight: 800,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 3,
+              boxShadow: '0 2px 5px rgba(0,0,0,0.08)',
+              pointerEvents: 'auto'
+            }}>
+              {auditoria.premiadas.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#047857' }}>
+                    <span>🏆 <b>PREMIADAS ({auditoria.premiadas.length})</b></span>
+                    <span style={{ fontSize: 9, color: '#065f46' }}>Top: <b>{auditoria.premiadas[0].acertos} pts</b></span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', maxHeight: 40, overflowY: 'auto' }}>
+                    {auditoria.premiadas.map((prem, pIdx) => (
+                      <span
+                        key={pIdx}
+                        style={{
+                          background: prem.acertos === 20 || prem.acertos === 0 ? '#fef08a' : prem.acertos >= 17 ? '#bbf7d0' : '#dcfce7',
+                          color: prem.acertos === 20 || prem.acertos === 0 ? '#854d0e' : prem.acertos >= 17 ? '#15803d' : '#166534',
+                          border: prem.acertos === 20 || prem.acertos === 0 ? '1px solid #eab308' : '1px solid #86efac',
+                          padding: '1px 4px',
+                          borderRadius: 4,
+                          fontSize: 9,
+                          fontWeight: 900
+                        }}
+                      >
+                        #{prem.numeroCartela}: {prem.acertos}p
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ color: '#64748b', textAlign: 'center', fontSize: 9 }}>
+                  Nenhuma cartela com 15+ ou 0 pts ainda
+                </div>
+              )}
+
+              {/* Tabela Retrátil Detalhada */}
+              {estaExpandido && (
+                <div style={{
+                  marginTop: 4,
+                  borderTop: '1px solid #cbd5e1',
+                  paddingTop: 4,
+                  maxHeight: 120,
+                  overflowY: 'auto',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 2
+                }}>
+                  <div style={{ fontSize: 9, fontWeight: 900, color: '#1e293b' }}>
+                    Varredura das Cartelas Fixas:
+                  </div>
+                  {auditoria.resultados.map((res, rIdx) => (
+                    <div
+                      key={rIdx}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        fontSize: 9,
+                        padding: '1px 4px',
+                        borderRadius: 3,
+                        background: res.ehPremiada ? '#dcfce7' : '#f8fafc',
+                        color: res.ehPremiada ? '#15803d' : '#475569',
+                        fontWeight: res.ehPremiada ? 800 : 500
+                      }}
+                    >
+                      <span>Cartela #{res.numeroCartela}</span>
+                      <span><b>{res.acertos} pts</b> {res.ehPremiada && '★'}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Matriz Visual do Gabarito */}
             <div style={{ ...styles.gradeSelecao, pointerEvents: 'none' }}>
               {Array.from({ length: LINHAS_QTD }, (_, linhaIdx) => (
                 <div key={linhaIdx} style={{ display: 'flex', gap: 4 }}>
