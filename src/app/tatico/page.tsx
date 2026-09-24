@@ -28,7 +28,7 @@ interface Gabarito5x20 {
 
 interface CartelaFixa5x20Item {
   id: number;
-  numeroCartela: number; // Identidade própria da cartela que nunca muda
+  numeroCartela: number;
   selecionadas: number[][];
   msg: string;
   bloqueada?: boolean;
@@ -43,12 +43,13 @@ function CartaoMontarJogo({
   removerCartela, 
   alternarTravaIndividual,
   trocarDiretoPosicao,
-  arrastandoCartelaIdx,
-  setArrastandoCartelaIdx,
+  cartelaSelecionadaParaTroca,
+  iniciarTroca,
   travaGeralAtiva,
   celulaCartelaStyle 
 }: any) {
   const estaTravada = travaGeralAtiva || cartela.bloqueada;
+  const estaAguardandoTroca = cartelaSelecionadaParaTroca === indice;
 
   const totalEscolhidos = cartela.selecionadas.reduce(
     (acc: number, linha: number[]) => acc + linha.filter(v => v === 1 || v === 2).length,
@@ -57,37 +58,39 @@ function CartaoMontarJogo({
 
   return (
     <div 
-      draggable
-      onDragStart={() => setArrastandoCartelaIdx(indice)}
-      onDragOver={(e) => e.preventDefault()}
-      onDrop={() => {
-        if (arrastandoCartelaIdx !== null && arrastandoCartelaIdx !== indice) {
-          trocarDiretoPosicao(arrastandoCartelaIdx, indice);
-          setArrastandoCartelaIdx(null);
-        }
-      }}
       style={{
         ...styles.cardPrincipal,
-        border: estaTravada ? '1px solid #fca5a5' : '1px solid #e2e8f0',
-        background: estaTravada ? '#fffbfa' : '#fff',
-        opacity: arrastandoCartelaIdx === indice ? 0.4 : 1,
-        cursor: 'grab'
+        border: estaAguardandoTroca 
+          ? '2px solid #2563eb' 
+          : estaTravada 
+            ? '1px solid #fca5a5' 
+            : '1px solid #e2e8f0',
+        background: estaAguardandoTroca 
+          ? '#eff6ff' 
+          : estaTravada 
+            ? '#fffbfa' 
+            : '#fff',
+        boxShadow: estaAguardandoTroca 
+          ? '0 0 15px rgba(37, 99, 235, 0.35)' 
+          : '0 4px 6px -1px rgba(0,0,0,0.08)',
+        transform: estaAguardandoTroca ? 'scale(1.01)' : 'none',
+        transition: 'all 0.2s ease'
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          {/* Botões rápidos de troca 1 por 1 */}
+          {/* Botões rápidos de adjacência */}
           <button
             type="button"
             disabled={indice === 0}
             onClick={() => trocarDiretoPosicao(indice, indice - 1)}
             style={{ ...styles.btnMover, opacity: indice === 0 ? 0.3 : 1 }}
-            title="Trocar de lugar com a cartela anterior"
+            title="Trocar com a cartela anterior"
           >
             ◀
           </button>
           
-          <h3 style={{ ...styles.cardTitle, cursor: 'grab' }} title="Arraste e solte sobre outra cartela para trocar de lugar">
+          <h3 style={styles.cardTitle}>
             CARTELA #{cartela.numeroCartela}
           </h3>
 
@@ -96,9 +99,28 @@ function CartaoMontarJogo({
             disabled={indice === totalCartelas - 1}
             onClick={() => trocarDiretoPosicao(indice, indice + 1)}
             style={{ ...styles.btnMover, opacity: indice === totalCartelas - 1 ? 0.3 : 1 }}
-            title="Trocar de lugar com a próxima cartela"
+            title="Trocar com a próxima cartela"
           >
             ▶
+          </button>
+
+          {/* BOTÃO PROFISSIONAL DE TROCA A LONGA DISTÂNCIA */}
+          <button
+            type="button"
+            onClick={() => iniciarTroca(indice)}
+            style={{
+              background: estaAguardandoTroca ? '#2563eb' : '#f1f5f9',
+              color: estaAguardandoTroca ? '#ffffff' : '#334155',
+              border: estaAguardandoTroca ? '1px solid #1d4ed8' : '1px solid #cbd5e1',
+              borderRadius: 4,
+              padding: '2px 6px',
+              fontSize: 10,
+              fontWeight: 800,
+              cursor: 'pointer'
+            }}
+            title={estaAguardandoTroca ? "Cancelar troca" : "Clique aqui e depois clique na outra cartela para trocar de posição"}
+          >
+            {estaAguardandoTroca ? 'Cancel ✕' : '⇄ Trocar'}
           </button>
 
           <button
@@ -206,8 +228,8 @@ export default function Gerador() {
   const [travaGeral, setTravaGeral] = useState(false);
   const [cartelasFixas, setCartelasFixas] = useState<CartelaFixa5x20Item[]>([]);
 
-  // Arrasto e Troca Direta
-  const [arrastandoCartelaIdx, setArrastandoCartelaIdx] = useState<number | null>(null);
+  // ESTADO DA TROCA INTELIGENTE A LONGA DISTÂNCIA
+  const [cartelaSelecionadaParaTroca, setCartelaSelecionadaParaTroca] = useState<number | null>(null);
 
   // Estados do Raio-X
   const [painelRaioXAberto, setPainelRaioXAberto] = useState(false);
@@ -226,7 +248,6 @@ export default function Gerador() {
     const fixasSalvas = localStorage.getItem(STORAGE_CARTELAS_FIXAS_KEY);
     if (fixasSalvas) {
       const parsed: CartelaFixa5x20Item[] = JSON.parse(fixasSalvas);
-      // Garante que cada cartela tenha seu numeroCartela próprio mesmo que venha de versão antiga
       const migradas = parsed.map((c, i) => ({
         ...c,
         numeroCartela: c.numeroCartela || (i + 1)
@@ -281,7 +302,7 @@ export default function Gerador() {
     ));
   };
 
-  // TROCA DIRETA 1 POR 1 (SEM EMPURRAR NENHUMA OUTRA CARTELA)
+  // TROCA DIRETA 1 POR 1 (SEM EMPURRAR AS OUTRAS)
   const trocarDiretoPosicao = (origemIdx: number, destinoIdx: number) => {
     if (destinoIdx < 0 || destinoIdx >= cartelasFixas.length || origemIdx === destinoIdx) return;
     setCartelasFixas(prev => {
@@ -293,9 +314,23 @@ export default function Gerador() {
     });
   };
 
+  // FLUXO DE TROCA COM 2 CLIQUES (ORIGEM -> DESTINO)
+  const iniciarOuExecutarTroca = (indiceClicado: number) => {
+    if (cartelaSelecionadaParaTroca === null) {
+      // 1º Clique: marca a cartela de origem
+      setCartelaSelecionadaParaTroca(indiceClicado);
+    } else if (cartelaSelecionadaParaTroca === indiceClicado) {
+      // Clicou nela mesma: cancela a seleção
+      setCartelaSelecionadaParaTroca(null);
+    } else {
+      // 2º Clique: executa a troca direta entre as duas
+      trocarDiretoPosicao(cartelaSelecionadaParaTroca, indiceClicado);
+      setCartelaSelecionadaParaTroca(null);
+    }
+  };
+
   const adicionarCartelaFixa = () => {
     setCartelasFixas(prev => {
-      // Pega o maior número de cartela já existente para nunca repetir número
       const maiorNum = prev.reduce((max, c) => Math.max(max, c.numeroCartela || 0), 0);
       return [
         ...prev,
@@ -631,6 +666,25 @@ export default function Gerador() {
   return (
     <div style={{ ...styles.container, padding: isMobile ? '10px' : '40px 20px' }}>
       
+      {/* BARRA FIXA DE ALERTA QUANDO UMA CARTELA ESTIVER AGUARDANDO TROCA */}
+      {cartelaSelecionadaParaTroca !== null && (
+        <div style={styles.alertaTrocaAtiva}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 16 }}>⇄</span>
+            <span>
+              Cartela <b>#{cartelasFixas[cartelaSelecionadaParaTroca]?.numeroCartela}</b> selecionada! Role e clique no botão <b>[⇄ Trocar]</b> de qualquer outra cartela para inverter.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setCartelaSelecionadaParaTroca(null)}
+            style={styles.btnCancelarTroca}
+          >
+            Cancelar Troca ✕
+          </button>
+        </div>
+      )}
+
       {/* PAINEL FLUTUANTE DO RAIO-X */}
       {painelRaioXAberto && (
         <div style={{
@@ -992,7 +1046,7 @@ export default function Gerador() {
 
       <h1 style={styles.title}>GERADOR TÁTICO 5x20</h1>
 
-      {/* Cartelas Fixas da Bancada (com troca 1 por 1 e número próprio preservado) */}
+      {/* Cartelas Fixas da Bancada */}
       <div style={{
         display: 'flex',
         flexWrap: 'wrap',
@@ -1014,8 +1068,8 @@ export default function Gerador() {
             removerCartela={removerCartelaFixa}
             alternarTravaIndividual={alternarTravaIndividual}
             trocarDiretoPosicao={trocarDiretoPosicao}
-            arrastandoCartelaIdx={arrastandoCartelaIdx}
-            setArrastandoCartelaIdx={setArrastandoCartelaIdx}
+            cartelaSelecionadaParaTroca={cartelaSelecionadaParaTroca}
+            iniciarTroca={iniciarOuExecutarTroca}
             travaGeralAtiva={travaGeral}
             celulaCartelaStyle={celulaEstilo}
           />
@@ -1181,6 +1235,36 @@ const styles = {
   alcaGabarito: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', cursor: 'grab', background: '#ffffff', padding: '4px 8px', borderRadius: 6, border: '1px solid #cbd5e1', userSelect: 'none' as const, pointerEvents: 'auto' as const, boxShadow: '0 2px 5px rgba(0,0,0,0.1)' },
   badgeContadorGabarito: { fontSize: 11, fontWeight: 900, background: '#f1f5f9', padding: '1px 6px', borderRadius: 8, color: '#334155' },
   btnAcaoMini: { background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 4, width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 900, cursor: 'pointer', padding: 0, color: '#475569' },
+
+  // Barra de alerta superior para pareamento de troca
+  alertaTrocaAtiva: {
+    position: 'fixed' as const,
+    top: 15,
+    left: '50%',
+    transform: 'translateX(-50%)',
+    zIndex: 10000,
+    background: '#1e293b',
+    color: '#ffffff',
+    padding: '10px 20px',
+    borderRadius: 30,
+    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.4)',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 16,
+    fontSize: 13,
+    fontWeight: 600,
+    border: '2px solid #3b82f6'
+  },
+  btnCancelarTroca: {
+    background: '#ef4444',
+    color: '#ffffff',
+    border: 'none',
+    borderRadius: 20,
+    padding: '4px 10px',
+    fontSize: 11,
+    fontWeight: 800,
+    cursor: 'pointer'
+  },
 
   janelaFlutuanteRaioX: {
     position: 'fixed' as const,
