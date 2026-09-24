@@ -79,7 +79,6 @@ function CartaoMontarJogo({
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          {/* Botões rápidos de adjacência */}
           <button
             type="button"
             disabled={indice === 0}
@@ -104,7 +103,6 @@ function CartaoMontarJogo({
             ▶
           </button>
 
-          {/* BOTÃO PROFISSIONAL DE TROCA A LONGA DISTÂNCIA */}
           <button
             type="button"
             onClick={() => iniciarTroca(indice)}
@@ -228,7 +226,7 @@ export default function Gerador() {
   const [travaGeral, setTravaGeral] = useState(false);
   const [cartelasFixas, setCartelasFixas] = useState<CartelaFixa5x20Item[]>([]);
 
-  // ESTADO DA TROCA INTELIGENTE A LONGA DISTÂNCIA
+  // Troca a Longa Distância
   const [cartelaSelecionadaParaTroca, setCartelaSelecionadaParaTroca] = useState<number | null>(null);
 
   // Estados do Raio-X
@@ -302,7 +300,6 @@ export default function Gerador() {
     ));
   };
 
-  // TROCA DIRETA 1 POR 1 (SEM EMPURRAR AS OUTRAS)
   const trocarDiretoPosicao = (origemIdx: number, destinoIdx: number) => {
     if (destinoIdx < 0 || destinoIdx >= cartelasFixas.length || origemIdx === destinoIdx) return;
     setCartelasFixas(prev => {
@@ -314,19 +311,86 @@ export default function Gerador() {
     });
   };
 
-  // FLUXO DE TROCA COM 2 CLIQUES (ORIGEM -> DESTINO)
   const iniciarOuExecutarTroca = (indiceClicado: number) => {
     if (cartelaSelecionadaParaTroca === null) {
-      // 1º Clique: marca a cartela de origem
       setCartelaSelecionadaParaTroca(indiceClicado);
     } else if (cartelaSelecionadaParaTroca === indiceClicado) {
-      // Clicou nela mesma: cancela a seleção
       setCartelaSelecionadaParaTroca(null);
     } else {
-      // 2º Clique: executa a troca direta entre as duas
       trocarDiretoPosicao(cartelaSelecionadaParaTroca, indiceClicado);
       setCartelaSelecionadaParaTroca(null);
     }
+  };
+
+  // --- MOTOR DE ORGANIZAÇÃO INTELIGENTE POR FALHAS ---
+  const getFaixasVazias = (grade: number[][]) => {
+    const vazias: number[] = [];
+    grade.forEach((linha, lIdx) => {
+      const temNumero = linha.some(v => v === 1 || v === 2);
+      if (!temNumero) vazias.push(lIdx);
+    });
+    return vazias;
+  };
+
+  // 1. Agrupar por similaridade de falhas (clustering)
+  const agruparPorSimilaridadeDeFalhas = () => {
+    if (cartelasFixas.length <= 1) return;
+
+    const lista = [...cartelasFixas];
+    const ordenadas: CartelaFixa5x20Item[] = [];
+    
+    let atual = lista.shift()!;
+    ordenadas.push(atual);
+
+    while (lista.length > 0) {
+      const vaziasAtual = getFaixasVazias(atual.selecionadas);
+      let melhorIndice = 0;
+      let maiorCoincidencia = -1;
+
+      lista.forEach((candidata, idx) => {
+        const vaziasCandidata = getFaixasVazias(candidata.selecionadas);
+        const coincidencia = vaziasAtual.filter(f => vaziasCandidata.includes(f)).length;
+        if (coincidencia > maiorCoincidencia) {
+          maiorCoincidencia = coincidencia;
+          melhorIndice = idx;
+        }
+      });
+
+      atual = lista.splice(melhorIndice, 1)[0];
+      ordenadas.push(atual);
+    }
+
+    setCartelasFixas(ordenadas);
+  };
+
+  // 2. Ordenações Estruturais
+  const ordenarCartelasPor = (tipo: 'topo' | 'base' | 'qtdVazias' | 'numero') => {
+    setCartelasFixas(prev => {
+      const copia = [...prev];
+      if (tipo === 'numero') {
+        return copia.sort((a, b) => a.numeroCartela - b.numeroCartela);
+      }
+      if (tipo === 'qtdVazias') {
+        return copia.sort((a, b) => getFaixasVazias(b.selecionadas).length - getFaixasVazias(a.selecionadas).length);
+      }
+      if (tipo === 'topo') {
+        // Mais faixas vazias na metade inferior (linhas 10 a 19)
+        return copia.sort((a, b) => {
+          const scoreA = getFaixasVazias(a.selecionadas).filter(l => l >= 10).length;
+          const scoreB = getFaixasVazias(b.selecionadas).filter(l => l >= 10).length;
+          return scoreB - scoreA;
+        });
+      }
+      if (tipo === 'base') {
+        // Mais faixas vazias na metade superior (linhas 0 a 9)
+        return copia.sort((a, b) => {
+          const scoreA = getFaixasVazias(a.selecionadas).filter(l => l < 10).length;
+          const scoreB = getFaixasVazias(b.selecionadas).filter(l => l < 10).length;
+          return scoreB - scoreA;
+        });
+      }
+      return copia;
+    });
   };
 
   const adicionarCartelaFixa = () => {
@@ -1046,6 +1110,58 @@ export default function Gerador() {
 
       <h1 style={styles.title}>GERADOR TÁTICO 5x20</h1>
 
+      {/* BARRA DE AUTO-ORGANIZAÇÃO POR FALHAS */}
+      <div style={styles.barraAutoOrganizacao}>
+        <span style={{ fontSize: 11, fontWeight: 900, color: '#475569', display: 'flex', alignItems: 'center', gap: 4 }}>
+          🎯 Auto-Organizar Bancada:
+        </span>
+        
+        <button 
+          type="button" 
+          onClick={agruparPorSimilaridadeDeFalhas} 
+          style={{ ...styles.btnFiltroAuto, background: '#e0f2fe', color: '#0369a1', borderColor: '#7dd3fc' }}
+          title="Agrupa lado a lado as cartelas que têm as mesmas faixas vazias"
+        >
+          🧬 Agrupar Falhas Parecidas
+        </button>
+
+        <button 
+          type="button" 
+          onClick={() => ordenarCartelasPor('topo')} 
+          style={styles.btnFiltroAuto}
+          title="Coloca primeiro as cartelas cujas faixas vazias estão na parte de baixo (01-50 cheias)"
+        >
+          ⬆ Vazias Embaixo (Foco Topo)
+        </button>
+
+        <button 
+          type="button" 
+          onClick={() => ordenarCartelasPor('base')} 
+          style={styles.btnFiltroAuto}
+          title="Coloca primeiro as cartelas cujas faixas vazias estão na parte de cima (51-00 cheias)"
+        >
+          ⬇ Vazias em Cima (Foco Base)
+        </button>
+
+        <button 
+          type="button" 
+          onClick={() => ordenarCartelasPor('qtdVazias')} 
+          style={styles.btnFiltroAuto}
+          title="Coloca primeiro as cartelas que possuem o maior número de faixas vazias"
+        >
+          🕳 Mais Vazias Primeiro
+        </button>
+
+        <button 
+          type="button" 
+          onClick={() => ordenarCartelasPor('numero')} 
+          style={{ ...styles.btnFiltroAuto, background: '#f8fafc' }}
+          title="Restaura a ordem numérica original (#1, #2, #3...)"
+        >
+          🔢 Ordem Original (#1, #2...)
+        </button>
+      </div>
+
       {/* Cartelas Fixas da Bancada */}
       <div style={{
         display: 'flex',
@@ -1139,7 +1255,7 @@ export default function Gerador() {
 
 const styles = {
   container: { background: "#f1f5f9", minHeight: "100vh", fontFamily: "sans-serif", position: 'relative' as const },
-  title: { fontSize: 22, fontWeight: 900, color: "#0f172a", marginBottom: 20, textAlign: 'center' as const },
+  title: { fontSize: 22, fontWeight: 900, color: "#0f172a", marginBottom: 12, textAlign: 'center' as const },
   topoAcoesBar: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, maxWidth: 1300, margin: '0 auto 20px auto', flexWrap: 'wrap' as const, gap: 10 },
   btnVoltar: { background: '#e0e7ef', border: 'none', borderRadius: 8, padding: '10px 15px', fontWeight: 700, cursor: 'pointer', color: '#334155' },
   btnAcaoTopo: {
@@ -1203,6 +1319,32 @@ const styles = {
     cursor: 'pointer',
     boxShadow: '0 2px 5px rgba(0,0,0,0.08)',
   },
+  barraAutoOrganizacao: {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap' as const,
+    maxWidth: 1300,
+    margin: '0 auto 24px auto',
+    padding: '8px 14px',
+    background: '#ffffff',
+    borderRadius: 12,
+    border: '1px solid #e2e8f0',
+    boxShadow: '0 2px 6px rgba(0,0,0,0.04)'
+  },
+  btnFiltroAuto: {
+    background: '#ffffff',
+    color: '#334155',
+    border: '1px solid #cbd5e1',
+    borderRadius: 6,
+    padding: '5px 10px',
+    fontSize: 11,
+    fontWeight: 800,
+    cursor: 'pointer',
+    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+    transition: 'all 0.15s ease'
+  },
   cardPrincipal: { 
     background: "#fff", 
     padding: 16, 
@@ -1236,7 +1378,6 @@ const styles = {
   badgeContadorGabarito: { fontSize: 11, fontWeight: 900, background: '#f1f5f9', padding: '1px 6px', borderRadius: 8, color: '#334155' },
   btnAcaoMini: { background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 4, width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 900, cursor: 'pointer', padding: 0, color: '#475569' },
 
-  // Barra de alerta superior para pareamento de troca
   alertaTrocaAtiva: {
     position: 'fixed' as const,
     top: 15,
