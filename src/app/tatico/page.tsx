@@ -28,6 +28,7 @@ interface Gabarito5x20 {
 
 interface CartelaFixa5x20Item {
   id: number;
+  numeroCartela: number; // Identidade própria da cartela que nunca muda
   selecionadas: number[][];
   msg: string;
   bloqueada?: boolean;
@@ -36,10 +37,14 @@ interface CartelaFixa5x20Item {
 function CartaoMontarJogo({ 
   cartela, 
   indice, 
+  totalCartelas,
   alternarNumero, 
   salvarCartela, 
   removerCartela, 
   alternarTravaIndividual,
+  trocarDiretoPosicao,
+  arrastandoCartelaIdx,
+  setArrastandoCartelaIdx,
   travaGeralAtiva,
   celulaCartelaStyle 
 }: any) {
@@ -51,14 +56,51 @@ function CartaoMontarJogo({
   );
 
   return (
-    <div style={{
-      ...styles.cardPrincipal,
-      border: estaTravada ? '1px solid #fca5a5' : '1px solid #e2e8f0',
-      background: estaTravada ? '#fffbfa' : '#fff'
-    }}>
+    <div 
+      draggable
+      onDragStart={() => setArrastandoCartelaIdx(indice)}
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={() => {
+        if (arrastandoCartelaIdx !== null && arrastandoCartelaIdx !== indice) {
+          trocarDiretoPosicao(arrastandoCartelaIdx, indice);
+          setArrastandoCartelaIdx(null);
+        }
+      }}
+      style={{
+        ...styles.cardPrincipal,
+        border: estaTravada ? '1px solid #fca5a5' : '1px solid #e2e8f0',
+        background: estaTravada ? '#fffbfa' : '#fff',
+        opacity: arrastandoCartelaIdx === indice ? 0.4 : 1,
+        cursor: 'grab'
+      }}
+    >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <h3 style={styles.cardTitle}>CARTELA #{indice + 1}</h3>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          {/* Botões rápidos de troca 1 por 1 */}
+          <button
+            type="button"
+            disabled={indice === 0}
+            onClick={() => trocarDiretoPosicao(indice, indice - 1)}
+            style={{ ...styles.btnMover, opacity: indice === 0 ? 0.3 : 1 }}
+            title="Trocar de lugar com a cartela anterior"
+          >
+            ◀
+          </button>
+          
+          <h3 style={{ ...styles.cardTitle, cursor: 'grab' }} title="Arraste e solte sobre outra cartela para trocar de lugar">
+            CARTELA #{cartela.numeroCartela}
+          </h3>
+
+          <button
+            type="button"
+            disabled={indice === totalCartelas - 1}
+            onClick={() => trocarDiretoPosicao(indice, indice + 1)}
+            style={{ ...styles.btnMover, opacity: indice === totalCartelas - 1 ? 0.3 : 1 }}
+            title="Trocar de lugar com a próxima cartela"
+          >
+            ▶
+          </button>
+
           <button
             type="button"
             onClick={() => alternarTravaIndividual(cartela.id)}
@@ -74,7 +116,7 @@ function CartaoMontarJogo({
             }}
             title={estaTravada ? "Cartela bloqueada contra cliques" : "Travar esta cartela"}
           >
-            {estaTravada ? '🔒 Travada' : '🔓 Aberta'}
+            {estaTravada ? '🔒' : '🔓'}
           </button>
         </div>
 
@@ -164,14 +206,16 @@ export default function Gerador() {
   const [travaGeral, setTravaGeral] = useState(false);
   const [cartelasFixas, setCartelasFixas] = useState<CartelaFixa5x20Item[]>([]);
 
+  // Arrasto e Troca Direta
+  const [arrastandoCartelaIdx, setArrastandoCartelaIdx] = useState<number | null>(null);
+
   // Estados do Raio-X
   const [painelRaioXAberto, setPainelRaioXAberto] = useState(false);
   const [raioXPos, setRaioXPos] = useState({ x: 40, y: 100 });
   const [qtdTopCustom, setQtdTopCustom] = useState<number>(20);
   const [ponteiroCarrossel, setPonteiroCarrossel] = useState<number>(0);
 
-  // MODO DE CONTROLE DE FAIXAS VAZIAS:
-  // Modo: 'manual' (você clica nas que quer travar vazias) ou 'auto' (pega as N mais fracas)
+  // Faixas Travadas Vazias
   const [modoVazias, setModoVazias] = useState<'manual' | 'auto'>('manual');
   const [faixasTravadasVazias, setFaixasTravadasVazias] = useState<number[]>([]);
   const [qtdFaixasAutoVazias, setQtdFaixasAutoVazias] = useState<number>(3);
@@ -181,13 +225,19 @@ export default function Gerador() {
   useEffect(() => {
     const fixasSalvas = localStorage.getItem(STORAGE_CARTELAS_FIXAS_KEY);
     if (fixasSalvas) {
-      setCartelasFixas(JSON.parse(fixasSalvas));
+      const parsed: CartelaFixa5x20Item[] = JSON.parse(fixasSalvas);
+      // Garante que cada cartela tenha seu numeroCartela próprio mesmo que venha de versão antiga
+      const migradas = parsed.map((c, i) => ({
+        ...c,
+        numeroCartela: c.numeroCartela || (i + 1)
+      }));
+      setCartelasFixas(migradas);
     } else {
       setCartelasFixas([
-        { id: 1, selecionadas: gerarGradeVazia(), msg: "", bloqueada: false },
-        { id: 2, selecionadas: gerarGradeVazia(), msg: "", bloqueada: false },
-        { id: 3, selecionadas: gerarGradeVazia(), msg: "", bloqueada: false },
-        { id: 4, selecionadas: gerarGradeVazia(), msg: "", bloqueada: false },
+        { id: 1, numeroCartela: 1, selecionadas: gerarGradeVazia(), msg: "", bloqueada: false },
+        { id: 2, numeroCartela: 2, selecionadas: gerarGradeVazia(), msg: "", bloqueada: false },
+        { id: 3, numeroCartela: 3, selecionadas: gerarGradeVazia(), msg: "", bloqueada: false },
+        { id: 4, numeroCartela: 4, selecionadas: gerarGradeVazia(), msg: "", bloqueada: false },
       ]);
     }
 
@@ -231,11 +281,27 @@ export default function Gerador() {
     ));
   };
 
+  // TROCA DIRETA 1 POR 1 (SEM EMPURRAR NENHUMA OUTRA CARTELA)
+  const trocarDiretoPosicao = (origemIdx: number, destinoIdx: number) => {
+    if (destinoIdx < 0 || destinoIdx >= cartelasFixas.length || origemIdx === destinoIdx) return;
+    setCartelasFixas(prev => {
+      const nova = [...prev];
+      const temp = nova[origemIdx];
+      nova[origemIdx] = nova[destinoIdx];
+      nova[destinoIdx] = temp;
+      return nova;
+    });
+  };
+
   const adicionarCartelaFixa = () => {
-    setCartelasFixas(prev => [
-      ...prev,
-      { id: Date.now(), selecionadas: gerarGradeVazia(), msg: "", bloqueada: false }
-    ]);
+    setCartelasFixas(prev => {
+      // Pega o maior número de cartela já existente para nunca repetir número
+      const maiorNum = prev.reduce((max, c) => Math.max(max, c.numeroCartela || 0), 0);
+      return [
+        ...prev,
+        { id: Date.now(), numeroCartela: maiorNum + 1, selecionadas: gerarGradeVazia(), msg: "", bloqueada: false }
+      ];
+    });
   };
 
   const removerCartelaFixa = (id: number) => {
@@ -378,7 +444,7 @@ export default function Gerador() {
     }));
   };
 
-  // --- ESTATÍSTICAS DAS 100 DEZENAS ---
+  // --- ESTATÍSTICAS 100 DEZENAS ---
   const estatisticas100 = useMemo(() => {
     const contadores: number[] = Array(100).fill(0);
 
@@ -454,7 +520,6 @@ export default function Gerador() {
     return { faixas, faixasMaisVazias, faixasTotalmenteZeradas };
   }, [cartelasFixas, salvos]);
 
-  // Alterna manualmente se uma faixa está travada vazia
   const alternarTravaFaixaVazia = (linhaIdx: number) => {
     setModoVazias('manual');
     setFaixasTravadasVazias(prev => 
@@ -496,7 +561,7 @@ export default function Gerador() {
     }));
   };
 
-  // EXPORTAÇÃO EM RODATÓRIA CONTÍNUA RESPEITANDO AS FAIXAS TRAVADAS
+  // EXPORTAÇÃO EM RODATÓRIA CONTÍNUA
   const exportarTopParaGabarito = (quantidade: number) => {
     const faixasBloqueadasIndices = new Set<number>();
 
@@ -509,7 +574,6 @@ export default function Gerador() {
       maisVazias.forEach(idx => faixasBloqueadasIndices.add(idx));
     }
 
-    // Filtra dezenas respeitando a exclusão das faixas travadas vazias
     const dezenasDisponiveis = estatisticas100.ordenadosPorUso.filter(item => {
       if (item.qtd <= 0) return false;
       const linhaDaDezena = Math.floor((item.valorBruto - 1) / COLUNAS_QTD);
@@ -596,7 +660,7 @@ export default function Gerador() {
 
           <div style={styles.corpoFlutuante}>
             
-            {/* PAINEL DE FAIXAS COM CONTROLE DE TRAVAS MANUAIS */}
+            {/* PAINEL DE FAIXAS COM TRAVAS */}
             <div style={{
               background: '#f8fafc',
               border: '1px solid #e2e8f0',
@@ -625,7 +689,6 @@ export default function Gerador() {
                   <button
                     type="button"
                     onClick={() => {
-                      // Modo automático: seleciona automaticamente as 3 mais vazias
                       const top3 = estatisticasFaixasHorizontais.faixasMaisVazias.slice(0, 3).map(f => f.linhaIdx);
                       setFaixasTravadasVazias(top3);
                       setModoVazias('manual');
@@ -638,7 +701,6 @@ export default function Gerador() {
                 </div>
               </div>
 
-              {/* Grid com todas as 20 faixas clicáveis */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 4, maxHeight: 110, overflowY: 'auto', padding: 2 }}>
                 {estatisticasFaixasHorizontais.faixas.map((f) => {
                   const estaTravadaVazia = faixasTravadasVazias.includes(f.linhaIdx);
@@ -678,7 +740,7 @@ export default function Gerador() {
               </div>
             </div>
 
-            {/* BARRA DE GERAÇÃO EM CARROSSEL */}
+            {/* GERAÇÃO EM CARROSSEL */}
             <div style={{ 
               display: 'flex', 
               gap: 8, 
@@ -877,7 +939,7 @@ export default function Gerador() {
         );
       })}
 
-      {/* Barra de Topo com Ações */}
+      {/* Barra de Topo */}
       <div style={styles.topoAcoesBar}>
         <button style={styles.btnVoltar} onClick={() => window.location.href = '/'}>
           ⬅ Voltar para Painel
@@ -930,7 +992,7 @@ export default function Gerador() {
 
       <h1 style={styles.title}>GERADOR TÁTICO 5x20</h1>
 
-      {/* Cartelas Fixas da Bancada */}
+      {/* Cartelas Fixas da Bancada (com troca 1 por 1 e número próprio preservado) */}
       <div style={{
         display: 'flex',
         flexWrap: 'wrap',
@@ -946,10 +1008,14 @@ export default function Gerador() {
             key={cartela.id}
             cartela={cartela}
             indice={idx}
+            totalCartelas={cartelasFixas.length}
             alternarNumero={alternarNumeroCartelaFixa}
             salvarCartela={salvarCartelaFixa}
             removerCartela={removerCartelaFixa}
             alternarTravaIndividual={alternarTravaIndividual}
+            trocarDiretoPosicao={trocarDiretoPosicao}
+            arrastandoCartelaIdx={arrastandoCartelaIdx}
+            setArrastandoCartelaIdx={setArrastandoCartelaIdx}
             travaGeralAtiva={travaGeral}
             celulaCartelaStyle={celulaEstilo}
           />
@@ -1083,7 +1149,25 @@ const styles = {
     cursor: 'pointer',
     boxShadow: '0 2px 5px rgba(0,0,0,0.08)',
   },
-  cardPrincipal: { background: "#fff", padding: 16, borderRadius: 16, boxShadow: "0 4px 6px -1px rgba(0,0,0,0.08)", border: "1px solid #e2e8f0", transition: 'all 0.2s ease' },
+  cardPrincipal: { 
+    background: "#fff", 
+    padding: 16, 
+    borderRadius: 16, 
+    boxShadow: "0 4px 6px -1px rgba(0,0,0,0.08)", 
+    border: "1px solid #e2e8f0", 
+    transition: 'all 0.15s ease',
+    userSelect: 'none' as const
+  },
+  btnMover: {
+    background: '#f1f5f9',
+    border: '1px solid #cbd5e1',
+    borderRadius: 4,
+    padding: '2px 4px',
+    fontSize: 9,
+    fontWeight: 800,
+    cursor: 'pointer',
+    color: '#475569'
+  },
   cardTitle: { fontSize: 12, fontWeight: 800, color: "#64748b", margin: 0, textTransform: 'uppercase' as const },
   gradeSelecao: { display: 'flex', flexDirection: 'column' as const, gap: 4, alignItems: 'center' },
   celulaCartela: { width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 6, fontWeight: 700, fontSize: 13 },
