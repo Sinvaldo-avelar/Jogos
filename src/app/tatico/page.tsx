@@ -755,8 +755,20 @@ export default function Gerador() {
   };
 
   // --- MOTOR DE AUDITORIA REVERSA: COMPARA GABARITO COM TODAS AS CARTELAS FIXAS ---
+ // --- MOTOR DE AUDITORIA REVERSA CALIBRADO ---
   const auditarGabaritoContraCartelas = (gabValores: number[][]) => {
     const resultados: { numeroCartela: number; acertos: number; ehPremiada: boolean }[] = [];
+
+    // Conta quantos números estão de facto marcados neste gabarito
+    const totalMarcadosNoGabarito = gabValores.reduce(
+      (acc, linha) => acc + linha.filter(v => v === 1).length,
+      0
+    );
+
+    // Se o gabarito estiver vazio ou incompleto (< 15 dezenas), não valida prémios
+    if (totalMarcadosNoGabarito < 15) {
+      return { totalAuditadas: 0, resultados: [], premiadas: [] };
+    }
 
     cartelasFixas.forEach(c => {
       let acertos = 0;
@@ -772,10 +784,9 @@ export default function Gerador() {
         }
       }
 
-      // Só audita se a cartela estiver realmente preenchida (ex: 20 números ou mais)
       if (marcadasNaCartela >= 15) {
-        // Faixas de premiação oficiais da Lotomania: 20, 19, 18, 17, 16, 15 ou 0 pontos!
-        const ehPremiada = acertos >= 15 || acertos === 0;
+        // Só considera os 0 pontos como prémio real se o gabarito tiver de facto dezenas suficientes (ex: 20 a 50)
+        const ehPremiada = acertos >= 15 || (acertos === 0 && totalMarcadosNoGabarito >= 20);
         resultados.push({
           numeroCartela: c.numeroCartela,
           acertos,
@@ -1556,7 +1567,7 @@ const styles = {
   jogoSalvoGrade: { background: "#fff", borderRadius: 12, padding: 10, border: "1px solid #e2e8f0", display: 'flex', flexDirection: 'column' as const, alignItems: 'center' },
   badgeNumero: { background: "#f1f5f9", fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 10, marginBottom: 5 },
   btnAcao: { flex: 1, padding: '5px', fontSize: 10, fontWeight: 700, border: 'none', borderRadius: 4, cursor: 'pointer', background: '#f1f5f9' },
-  gabaritoContainer: { position: 'fixed' as const, zIndex: 9999, background: 'transparent', borderRadius: 12, padding: '8px 8px', display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: 6, boxShadow: '0 8px 24px rgba(0,0,0,0.2)', pointerEvents: 'none' as const },
+  gabaritoContainer: { position: 'fixed' as const, zIndex: 9999, background: 'transparent', borderRadius: 12, padding: '8px 8px', display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: 6, boxShadow: '0 8px 24px rgba(0,0,0,0.2)', pointerEvents: 'none' as const,maxWidth: 240,width: 'auto' },
   alcaGabarito: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', cursor: 'grab', background: '#ffffff', padding: '4px 8px', borderRadius: 6, border: '1px solid #cbd5e1', userSelect: 'none' as const, pointerEvents: 'auto' as const, boxShadow: '0 2px 5px rgba(0,0,0,0.1)' },
   badgeContadorGabarito: { fontSize: 11, fontWeight: 900, background: '#f1f5f9', padding: '1px 6px', borderRadius: 8, color: '#334155' },
   btnAcaoMini: { background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 4, width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 900, cursor: 'pointer', padding: 0, color: '#475569' },
