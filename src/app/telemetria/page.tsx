@@ -1,55 +1,33 @@
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
+import { 
+  COLUNAS_QTD, 
+  LINHAS_QTD, 
+  RadiografiaCartela, 
+  analisarCartela 
+} from './radiografiaMotor';
 
-const COLUNAS_QTD = 5;
-const LINHAS_QTD = 20;
-
-interface CartelaDados {
-  id: number | string;
-  numeroCartela: number;
-  selecionadas: number[][];
-  dezenas: number[];
-  contagemPorFaixa: number[]; // Guarda exatamente quantos números tem em cada uma das 20 faixas (0 a 5)
-}
-
-export default function TelemetriaDireta() {
-  const [cartelas, setCartelas] = useState<CartelaDados[]>([]);
+export default function TelemetriaBidimensional() {
+  const [cartelas, setCartelas] = useState<RadiografiaCartela[]>([]);
+  
+  // Filtros Horizontais (Faixas)
   const [faixasEscolhidas, setFaixasEscolhidas] = useState<number[]>([]);
-  // Filtro de densidade: '0', '1', '2', '3', '4', '5' ou '0_ou_1' (vácuo flexível)
-  const [densidadeFiltro, setDensidadeFiltro] = useState<string>('0_ou_1');
+  const [densidadeFaixas, setDensidadeFaixas] = useState<string>('0_ou_1');
+
+  // Filtros Verticais (5 Colunas)
+  const [colunasEscolhidas, setColunasEscolhidas] = useState<number[]>([]);
+  const [filtroColunaMin, setFiltroColunaMin] = useState<number>(0);
+
+  // Filtro de Agrupamento / Concentração
+  const [minAglomerado, setMinAglomerado] = useState<number>(0);
 
   const carregarDados = () => {
     const raw = localStorage.getItem('gerador_cartelas_fixas_5x20') || '[]';
     try {
       const data = JSON.parse(raw);
-      const lista: CartelaDados[] = data.map((c: any, idx: number) => {
-        const dezenas: number[] = [];
-        const contagemPorFaixa = Array(LINHAS_QTD).fill(0);
-
-        if (Array.isArray(c.selecionadas)) {
-          c.selecionadas.forEach((linha: number[], lIdx: number) => {
-            const marcadasLinha = linha.filter(v => v === 1 || v === 2).length;
-            contagemPorFaixa[lIdx] = marcadasLinha;
-
-            linha.forEach((v, cIdx) => {
-              if (v === 1 || v === 2) {
-                dezenas.push(lIdx * COLUNAS_QTD + cIdx + 1);
-              }
-            });
-          });
-        }
-
-        return {
-          id: c.id || idx + 1,
-          numeroCartela: c.numeroCartela || idx + 1,
-          selecionadas: c.selecionadas || [],
-          dezenas,
-          contagemPorFaixa,
-        };
-      });
-
-      setCartelas(lista);
+      const analisadas = data.map((c: any, idx: number) => analisarCartela(c, idx));
+      setCartelas(analisadas);
     } catch (e) {
       console.error('Erro ao ler bancada:', e);
     }
@@ -67,46 +45,70 @@ export default function TelemetriaDireta() {
     );
   };
 
-  // Filtra as cartelas de acordo com a densidade exata escolhida
+  const alternarColuna = (cIdx: number) => {
+    setColunasEscolhidas(prev =>
+      prev.includes(cIdx) ? prev.filter(c => c !== cIdx) : [...prev, cIdx].sort((a, b) => a - b)
+    );
+  };
+
+  // Motor de Filtro Multidimensional Instantâneo
   const cartelasFiltradas = useMemo(() => {
-    if (faixasEscolhidas.length === 0) return cartelas;
-
     return cartelas.filter(c => {
-      return faixasEscolhidas.every(fIdx => {
-        const qtdNaFaixa = c.contagemPorFaixa[fIdx];
+      // 1. Checagem das Linhas Horizontais
+      if (faixasEscolhidas.length > 0) {
+        const bateuFaixas = faixasEscolhidas.every(fIdx => {
+          const qtd = c.linhasPontos[fIdx];
+          if (densidadeFaixas === '0_ou_1') return qtd === 0 || qtd === 1;
+          return qtd === Number(densidadeFaixas);
+        });
+        if (!bateuFaixas) return false;
+      }
 
-        if (densidadeFiltro === '0_ou_1') {
-          return qtdNaFaixa === 0 || qtdNaFaixa === 1;
-        }
+      // 2. Checagem das Colunas Verticais
+      if (colunasEscolhidas.length > 0 && filtroColunaMin > 0) {
+        const bateuColunas = colunasEscolhidas.every(cIdx => {
+          return c.colunasPontos[cIdx] >= filtroColunaMin;
+        });
+        if (!bateuColunas) return false;
+      }
 
-        return qtdNaFaixa === Number(densidadeFiltro);
-      });
+      // 3. Checagem de Agrupamento / Ilha Mínima
+      if (minAglomerado > 0 && c.maiorIlhaContigua < minAglomerado) {
+        return false;
+      }
+
+      return true;
     });
-  }, [cartelas, faixasEscolhidas, densidadeFiltro]);
+  }, [cartelas, faixasEscolhidas, densidadeFaixas, colunasEscolhidas, filtroColunaMin, minAglomerado]);
 
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', color: '#0f172a', padding: 20, fontFamily: 'sans-serif' }}>
       
-      {/* BARRA DE CONTROLE */}
+      {/* PAINEL SUPERIOR: MESA DE CONTROLE BIDIMENSIONAL */}
       <div style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: 8, padding: 14, marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
           <div>
             <h1 style={{ fontSize: 18, margin: 0, fontWeight: 900, color: '#0f172a' }}>
-              🎯 AUDITOR DE FAIXAS & DENSIDADE DE PONTOS
+              🔬 RADIOGRAFIA BIDIMENSIONAL (HORIZONTAL + VERTICAL)
             </h1>
             <p style={{ margin: '4px 0 0', fontSize: 13, color: '#475569' }}>
-              Bancada ativa: <b>{cartelas.length} cartelas fixas</b>
+              Bancada fixa: <b>{cartelas.length} cartelas</b> | Geometria de corte e canais ativada
             </p>
           </div>
 
           <div style={{ display: 'flex', gap: 8 }}>
-            {faixasEscolhidas.length > 0 && (
+            {(faixasEscolhidas.length > 0 || colunasEscolhidas.length > 0 || minAglomerado > 0) && (
               <button
                 type="button"
-                onClick={() => setFaixasEscolhidas([])}
+                onClick={() => {
+                  setFaixasEscolhidas([]);
+                  setColunasEscolhidas([]);
+                  setFiltroColunaMin(0);
+                  setMinAglomerado(0);
+                }}
                 style={{ background: '#fee2e2', border: '1px solid #f87171', color: '#b91c1c', padding: '6px 12px', borderRadius: 6, fontWeight: 800, cursor: 'pointer', fontSize: 12 }}
               >
-                Limpar Faixas ✕
+                Limpar Todos os Filtros ✕
               </button>
             )}
             <button
@@ -119,10 +121,10 @@ export default function TelemetriaDireta() {
           </div>
         </div>
 
-        {/* 20 FAIXAS CLICÁVEIS */}
+        {/* 1. SELETOR HORIZONTAL (20 FAIXAS) */}
         <div style={{ marginTop: 14 }}>
           <div style={{ fontSize: 12, fontWeight: 800, color: '#334155', marginBottom: 6 }}>
-            1. SELECIONE AS FAIXAS QUE VOCÊ QUER INSPECIONAR:
+            1. EIXO HORIZONTAL — SELECIONE AS 20 FAIXAS (LINHAS):
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 6 }}>
@@ -156,131 +158,229 @@ export default function TelemetriaDireta() {
               );
             })}
           </div>
-        </div>
 
-        {/* 2. SELETOR DE DENSIDADE (QUANTOS PONTOS POR FAIXA) */}
-        <div style={{ marginTop: 14, borderTop: '1px solid #e2e8f0', paddingTop: 10 }}>
-          <div style={{ fontSize: 12, fontWeight: 800, color: '#334155', marginBottom: 6 }}>
-            2. O QUE VOCÊ QUER QUE ESSAS FAIXAS TENHAM NAS CARTELAS?
-          </div>
-
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {/* Critério da Linha */}
+          <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
             {[
-              { id: '0_ou_1', rotulo: '🛡️ Vácuo ou 1 pt (Tolerância)' },
-              { id: '0', rotulo: '🕳️ Só 0 pts (Vácuo Puro)' },
-              { id: '1', rotulo: '1️⃣ Só 1 pt' },
-              { id: '2', rotulo: '2️⃣ Só 2 pts' },
-              { id: '3', rotulo: '3️⃣ Só 3 pts' },
-              { id: '4', rotulo: '4️⃣ Só 4 pts' },
-              { id: '5', rotulo: '🔥 5 pts (Cheias)' }
+              { id: '0_ou_1', label: '🛡️ Vácuo ou 1 pt' },
+              { id: '0', label: '🕳️ Só 0 pts' },
+              { id: '1', label: '1️⃣ Só 1 pt' },
+              { id: '2', label: '2️⃣ Só 2 pts' },
+              { id: '3', label: '3️⃣ Só 3 pts' },
             ].map(item => (
               <button
                 key={item.id}
                 type="button"
-                onClick={() => setDensidadeFiltro(item.id)}
+                onClick={() => setDensidadeFaixas(item.id)}
                 style={{
-                  background: densidadeFiltro === item.id ? '#0f172a' : '#f1f5f9',
-                  color: densidadeFiltro === item.id ? '#ffffff' : '#334155',
-                  border: densidadeFiltro === item.id ? '1px solid #0f172a' : '1px solid #cbd5e1',
-                  borderRadius: 6,
-                  padding: '6px 12px',
-                  fontSize: 11,
+                  background: densidadeFaixas === item.id ? '#0f172a' : '#f1f5f9',
+                  color: densidadeFaixas === item.id ? '#fff' : '#334155',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: 5,
+                  padding: '4px 8px',
+                  fontSize: 10,
                   fontWeight: 800,
                   cursor: 'pointer'
                 }}
               >
-                {item.rotulo}
+                {item.label}
               </button>
             ))}
           </div>
         </div>
-      </div>
 
-      {/* PLACAR DE RESULTADOS */}
-      <div style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: 8, padding: 14, marginBottom: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+        {/* 2. SELETOR VERTICAL (5 COLUNAS) E ILHAS */}
+        <div style={{ marginTop: 14, borderTop: '1px solid #e2e8f0', paddingTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          
+          {/* Colunas */}
           <div>
-            <span style={{ fontSize: 13, color: '#64748b' }}>Consulta ativa: </span>
-            <span style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>
-              {faixasEscolhidas.length > 0 
-                ? `Faixas [ ${faixasEscolhidas.map(f => `F${f + 1}`).join(', ')} ]` 
-                : 'Todas as cartelas (nenhuma faixa filtrada)'}
-            </span>
+            <div style={{ fontSize: 12, fontWeight: 800, color: '#334155', marginBottom: 6 }}>
+              2. EIXO VERTICAL — CANALETAS DE PESO (5 COLUNAS):
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {Array.from({ length: COLUNAS_QTD }, (_, cIdx) => {
+                const ativa = colunasEscolhidas.includes(cIdx);
+                return (
+                  <button
+                    key={cIdx}
+                    type="button"
+                    onClick={() => alternarColuna(cIdx)}
+                    style={{
+                      flex: 1,
+                      background: ativa ? '#16a34a' : '#fff',
+                      border: ativa ? '2px solid #15803d' : '1px solid #cbd5e1',
+                      color: ativa ? '#fff' : '#0f172a',
+                      borderRadius: 6,
+                      padding: '8px 4px',
+                      cursor: 'pointer',
+                      fontWeight: 900,
+                      fontSize: 12,
+                      textAlign: 'center'
+                    }}
+                  >
+                    Col {cIdx + 1}
+                  </button>
+                );
+              })}
+            </div>
+            {colunasEscolhidas.length > 0 && (
+              <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 }}>
+                <span style={{ color: '#475569', fontWeight: 700 }}>Exigir no mínimo:</span>
+                {[8, 10, 12, 14].map(val => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => setFiltroColunaMin(prev => prev === val ? 0 : val)}
+                    style={{
+                      background: filtroColunaMin === val ? '#16a34a' : '#f1f5f9',
+                      color: filtroColunaMin === val ? '#fff' : '#334155',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: 4,
+                      padding: '2px 6px',
+                      fontWeight: 800,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {val}+ pts
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
-          <div style={{ fontSize: 15, fontWeight: 900, color: cartelasFiltradas.length > 0 ? '#16a34a' : '#dc2626' }}>
-            {cartelasFiltradas.length} cartelas encontradas
+          {/* Agrupamento Geométrico */}
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 800, color: '#334155', marginBottom: 6 }}>
+              3. TOPOLOGIA — ILHAS / CONGLOMERADOS (DEZENAS COLADAS):
+            </div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {[
+                { min: 0, label: 'Qualquer formato' },
+                { min: 10, label: 'Ilha média (10+ coladas)' },
+                { min: 15, label: 'Ilha maciça (15+ coladas)' },
+                { min: 20, label: 'Super-bloco (20+ coladas)' }
+              ].map(item => (
+                <button
+                  key={item.min}
+                  type="button"
+                  onClick={() => setMinAglomerado(item.min)}
+                  style={{
+                    background: minAglomerado === item.min ? '#7c3aed' : '#f1f5f9',
+                    color: minAglomerado === item.min ? '#fff' : '#334155',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: 5,
+                    padding: '6px 10px',
+                    fontSize: 11,
+                    fontWeight: 800,
+                    cursor: 'pointer'
+                  }}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* CARTELAS REAIS ENCONTRADAS */}
-      <div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-start' }}>
-          {cartelasFiltradas.map((c) => (
-            <div
-              key={c.id}
-              style={{
-                background: '#fff',
-                border: '1px solid #cbd5e1',
-                borderRadius: 8,
-                padding: 10,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center'
-              }}
-            >
-              <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 11, fontWeight: 900 }}>
-                <span style={{ color: '#0284c7' }}>Cartela #{c.numeroCartela}</span>
-                <span style={{ color: '#64748b' }}>{c.dezenas.length} dezenas</span>
-              </div>
-
-              {/* Matriz 5x20 */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {c.selecionadas.map((linha, lIdx) => {
-                  const estaNaConsulta = faixasEscolhidas.includes(lIdx);
-                  const qtdMarcadas = c.contagemPorFaixa[lIdx];
-
-                  return (
-                    <div key={lIdx} style={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                      {linha.map((val, colIdx) => {
-                        const num = lIdx * COLUNAS_QTD + colIdx + 1;
-                        const marcado = val === 1 || val === 2;
-
-                        return (
-                          <div
-                            key={colIdx}
-                            style={{
-                              width: 20,
-                              height: 20,
-                              fontSize: 9,
-                              fontWeight: 800,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              borderRadius: 3,
-                              background: marcado ? '#2563eb' : estaNaConsulta ? '#fee2e2' : '#f1f5f9',
-                              color: marcado ? '#fff' : estaNaConsulta ? '#b91c1c' : '#94a3b8',
-                              border: estaNaConsulta ? '1px solid #fca5a5' : '1px solid #e2e8f0'
-                            }}
-                          >
-                            {(num === 100 ? 0 : num).toString().padStart(2, '0')}
-                          </div>
-                        );
-                      })}
-                      {/* Indicador discreto da quantidade de pontos da faixa se estiver sob consulta */}
-                      {estaNaConsulta && (
-                        <span style={{ fontSize: 9, fontWeight: 900, color: '#b91c1c', marginLeft: 2 }}>
-                          {qtdMarcadas}p
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
+      {/* PLACAR DE STATUS */}
+      <div style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: 8, padding: 12, marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: '#334155' }}>
+          Resultado da Busca: <span style={{ color: cartelasFiltradas.length > 0 ? '#16a34a' : '#dc2626' }}>{cartelasFiltradas.length} cartelas encontradas</span>
         </div>
+        <div style={{ fontSize: 11, color: '#64748b' }}>
+          Filtros ativos: {faixasEscolhidas.length} faixas H | {colunasEscolhidas.length} canais V | {minAglomerado > 0 ? `Ilha min ${minAglomerado}` : 'Sem filtro de ilha'}
+        </div>
+      </div>
+
+      {/* GRADE DAS CARTELAS ENCONTRADAS COM RAIO-X COMPLETO */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, alignItems: 'flex-start' }}>
+        {cartelasFiltradas.map(c => (
+          <div
+            key={c.id}
+            style={{
+              background: '#fff',
+              border: '1px solid #cbd5e1',
+              borderRadius: 8,
+              padding: 10,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center'
+            }}
+          >
+            {/* Cabeçalho da Cartela */}
+            <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 11, fontWeight: 900 }}>
+              <span style={{ color: '#0284c7' }}>Cartela #{c.numeroCartela}</span>
+              <span style={{ color: '#7c3aed' }}>Maior Ilha: {c.maiorIlhaContigua} pts</span>
+            </div>
+
+            {/* Placar das 5 Colunas */}
+            <div style={{ width: '100%', display: 'flex', justifyContent: 'space-around', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 4, padding: '2px 0', marginBottom: 6, fontSize: 9, fontWeight: 800, color: '#475569' }}>
+              {c.colunasPontos.map((pts, cIdx) => (
+                <span key={cIdx} style={{ color: colunasEscolhidas.includes(cIdx) ? '#16a34a' : '#475569' }}>
+                  C{cIdx + 1}:{pts}
+                </span>
+              ))}
+            </div>
+
+            {/* Matriz 20x5 */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {c.selecionadas.map((linha, lIdx) => {
+                const estaNaConsultaFaixa = faixasEscolhidas.includes(lIdx);
+                const qtdLinha = c.linhasPontos[lIdx];
+
+                return (
+                  <div key={lIdx} style={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                    {linha.map((val, colIdx) => {
+                      const num = lIdx * COLUNAS_QTD + colIdx + 1;
+                      const marcado = val === 1 || val === 2;
+                      const colAtiva = colunasEscolhidas.includes(colIdx);
+
+                      let bg = '#f1f5f9';
+                      let color = '#94a3b8';
+
+                      if (marcado) {
+                        bg = colAtiva ? '#16a34a' : '#2563eb';
+                        color = '#fff';
+                      } else if (estaNaConsultaFaixa) {
+                        bg = '#fee2e2';
+                        color = '#b91c1c';
+                      }
+
+                      return (
+                        <div
+                          key={colIdx}
+                          style={{
+                            width: 20,
+                            height: 20,
+                            fontSize: 9,
+                            fontWeight: 800,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            borderRadius: 3,
+                            background: bg,
+                            color: color,
+                            border: estaNaConsultaFaixa ? '1px solid #fca5a5' : '1px solid #e2e8f0'
+                          }}
+                        >
+                          {(num === 100 ? 0 : num).toString().padStart(2, '0')}
+                        </div>
+                      );
+                    })}
+
+                    {/* Indicador de peso da linha */}
+                    {estaNaConsultaFaixa && (
+                      <span style={{ fontSize: 9, fontWeight: 900, color: '#b91c1c', marginLeft: 2 }}>
+                        {qtdLinha}p
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
