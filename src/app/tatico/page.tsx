@@ -1292,12 +1292,26 @@ export default function Gerador() {
             ➕ Adicionar Cartela ({cartelasFixas.length})
           </button>
           
-          <button
+         <button
             type="button"
             style={styles.btnNovoGabarito}
             onClick={adicionarGabarito}
           >
             📋 + Cartela Gabarito {gabaritos.length > 0 && `(${gabaritos.length})`}
+          </button>
+          <button
+            type="button"
+            style={styles.btnTelemetria}
+            onClick={() => {
+              window.open(
+                '/telemetria',
+                'TelemetriaLotomania',
+                'width=1200,height=850,menubar=no,toolbar=no,location=no,status=no'
+              );
+            }}
+            title="Abre a bancada geométrica de vácuo em janela independente para o monitor 2"
+          >
+            🚀 Telemetria 2ª Tela
           </button>
         </div>
       </div>
@@ -1512,6 +1526,20 @@ const styles = {
     fontSize: 13,
     cursor: 'pointer',
     boxShadow: '0 2px 5px rgba(0,0,0,0.08)',
+  },
+  btnTelemetria: {
+    background: '#090d16',
+    color: '#38bdf8',
+    border: '1px solid #0284c7',
+    borderRadius: 8,
+    padding: '10px 16px',
+    fontWeight: 800,
+    fontSize: 13,
+    cursor: 'pointer',
+    boxShadow: '0 2px 8px rgba(2, 132, 199, 0.35)',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
   },
   barraAutoOrganizacao: {
     display: 'flex',
