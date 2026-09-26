@@ -78,7 +78,6 @@ export function analisarCartela(
   for (let l = 0; l < LINHAS_QTD; l++) {
     for (let col = 0; col < COLUNAS_QTD; col++) {
       if (grid[l][col] === 1) {
-        // Verifica se tem ao menos 1 vizinho ativo
         let temVizinho = false;
         for (const [dl, dc] of deltas) {
           const nl = l + dl;
@@ -92,7 +91,6 @@ export function analisarCartela(
         }
         if (temVizinho) dezenasColadas++;
 
-        // Mede tamanho do aglomerado via BFS se ainda não visitado
         if (!visitados[l][col]) {
           let tamanhoIlha = 0;
           const fila: [number, number][] = [[l, col]];
@@ -135,5 +133,84 @@ export function analisarCartela(
     colunasPontos,
     dezenasColadas,
     maiorIlhaContigua
+  };
+}
+
+// ==============================================================
+// ADICIONE A PARTIR DAQUI (NO FINAL DO FICHEIRO):
+// ==============================================================
+
+/**
+ * Motor combinatório heurístico para cobertura mínima de dezenas.
+ * Produz o menor volume de bilhetes de 50 dezenas a partir do conjunto fornecido.
+ */
+export function sintetizarCartelasOtimizadas(
+  dezenasBase: number[],
+  alvoPontos: number = 15,
+  limiteMaximoDezenas?: number
+): { id: string; numeroCartela: number; dezenas: number[]; selecionadas: number[][] }[] {
+  let pool = Array.from(new Set(dezenasBase)).sort((a, b) => a - b);
+
+  if (limiteMaximoDezenas && limiteMaximoDezenas > 0 && pool.length > limiteMaximoDezenas) {
+    pool = pool.slice(0, limiteMaximoDezenas);
+  }
+
+  if (pool.length < 50) {
+    const restantes: number[] = [];
+    for (let i = 1; i <= TOTAL_CASAS; i++) {
+      if (!pool.includes(i)) restantes.push(i);
+    }
+    while (pool.length < 50 && restantes.length > 0) {
+      pool.push(restantes.shift()!);
+    }
+    pool.sort((a, b) => a - b);
+  }
+
+  if (pool.length === 50) {
+    return [montarObjetoCartela(1, pool)];
+  }
+
+  const sobreposicaoMinima = Math.min(48, Math.max(25, 50 - (20 - alvoPontos) * 5));
+  const passo = Math.max(2, 50 - sobreposicaoMinima);
+
+  const cartelasGeradas: number[][] = [];
+  let offset = 0;
+
+  while (offset + 50 <= pool.length) {
+    const jogo = pool.slice(offset, offset + 50);
+    cartelasGeradas.push(jogo);
+    offset += passo;
+    if (cartelasGeradas.length >= 25) break;
+  }
+
+  if (offset < pool.length && cartelasGeradas.length < 25) {
+    const jogoFinal = pool.slice(pool.length - 50, pool.length);
+    const repetida = cartelasGeradas.some(
+      g => g.length === jogoFinal.length && g.every((v, i) => v === jogoFinal[i])
+    );
+    if (!repetida) {
+      cartelasGeradas.push(jogoFinal);
+    }
+  }
+
+  return cartelasGeradas.map((jogo, idx) => montarObjetoCartela(idx + 1, jogo));
+}
+
+function montarObjetoCartela(indice: number, dezenas: number[]) {
+  const matriz = Array(LINHAS_QTD).fill(0).map(() => Array(COLUNAS_QTD).fill(0));
+  dezenas.forEach(num => {
+    const idxReal = num - 1;
+    const l = Math.floor(idxReal / COLUNAS_QTD);
+    const c = idxReal % COLUNAS_QTD;
+    if (l >= 0 && l < LINHAS_QTD && c >= 0 && c < COLUNAS_QTD) {
+      matriz[l][c] = 1;
+    }
+  });
+
+  return {
+    id: `sintetizada-${Date.now()}-${indice}`,
+    numeroCartela: indice,
+    dezenas: dezenas.sort((a, b) => a - b),
+    selecionadas: matriz
   };
 }
