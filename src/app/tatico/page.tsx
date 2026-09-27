@@ -236,6 +236,7 @@ export default function Gerador() {
   const [painelRaioXAberto, setPainelRaioXAberto] = useState(false);
   const [raioXPos, setRaioXPos] = useState({ x: 40, y: 100 });
   const [qtdTopCustom, setQtdTopCustom] = useState<number>(50);
+  const [qtdFaixasVaziasAuto, setQtdFaixasVaziasAuto] = useState<number>(6);
   const [ponteiroCarrossel, setPonteiroCarrossel] = useState<number>(0);
 
   // Faixas Travadas Vazias
@@ -687,11 +688,11 @@ export default function Gerador() {
 
         const faixasCorte = [...perfilEscolhido]
           .sort(() => Math.random() - 0.5)
-          .slice(0, Math.min(perfilEscolhido.length, 7));
+          .slice(0, Math.min(perfilEscolhido.length, qtdFaixasVaziasAuto));
 
         faixasCorte.forEach(idx => faixasBloqueadasIndices.add(idx));
       } else {
-        const fracas = estatisticasFaixasHorizontais.faixasMaisVazias.slice(0, 5).map(f => f.linhaIdx);
+        const fracas = estatisticasFaixasHorizontais.faixasMaisVazias.slice(0, qtdFaixasVaziasAuto).map(f => f.linhaIdx);
         fracas.forEach(idx => faixasBloqueadasIndices.add(idx));
       }
     }
@@ -980,6 +981,31 @@ export default function Gerador() {
                 <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>
                   dezenas (girando nas faixas liberadas)
                 </span>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 11, fontWeight: 800, color: '#475569' }}>
+                  Cortar faixas vazias:
+                </span>
+                <input
+                  type="number"
+                  min={1}
+                  max={15}
+                  value={qtdFaixasVaziasAuto}
+                  onChange={(e) => setQtdFaixasVaziasAuto(Math.max(1, Math.min(15, Number(e.target.value) || 1)))}
+                  style={{
+                    width: 50,
+                    padding: '3px 4px',
+                    fontSize: 12,
+                    fontWeight: 800,
+                    textAlign: 'center',
+                    borderRadius: 6,
+                    border: '1px solid #cbd5e1',
+                    outline: 'none',
+                    color: '#0f172a',
+                    background: '#fff'
+                  }}
+                />
               </div>
 
               <div style={{ display: 'flex', gap: 4 }}>
