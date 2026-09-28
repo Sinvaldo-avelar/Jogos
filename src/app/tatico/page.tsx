@@ -359,6 +359,7 @@ export default function Gerador() {
   const [isMobile, setIsMobile] = useState(false);
   const [gabaritos, setGabaritos] = useState<Gabarito5x20[]>([]);
   const [gabaritoAtivoParaComparacaoId, setGabaritoAtivoParaComparacaoId] = useState<number | null>(null);
+  const [relatorioGeralAberto, setRelatorioGeralAberto] = useState(false);
   const [travaGeral, setTravaGeral] = useState(false);
   const [cartelasFixas, setCartelasFixas] = useState<CartelaFixa5x20Item[]>([]);
 
@@ -381,6 +382,67 @@ export default function Gerador() {
   const [indicePerfilDinamico, setIndicePerfilDinamico] = useState<number>(0);
 
   const gerarGradeVazia = () => Array(LINHAS_QTD).fill(0).map(() => Array(COLUNAS_QTD).fill(0));
+
+  const relatorioAuditoriaGeral = useMemo(() => {
+    if (gabaritos.length === 0 || cartelasFixas.length === 0) {
+      return null;
+    }
+
+    const faixasPontos: Record<number, number> = {
+      20: 0, 19: 0, 18: 0, 17: 0, 16: 0, 15: 0, 14: 0, 0: 0
+    };
+
+    let melhorAcertoGeral = 0;
+    let campeao = { gabaritoNome: '', cartelaNumero: 0, acertos: 0 };
+
+    const detalhePorCartela = cartelasFixas.map((cartela) => {
+      let melhorDestaCartela = 0;
+      let gabaritoMelhorNome = '';
+      const acertosPorGabarito: { gabNome: string; acertos: number }[] = [];
+
+      gabaritos.forEach((gab, gIdx) => {
+        let acertos = 0;
+        for (let l = 0; l < LINHAS_QTD; l++) {
+          for (let c = 0; c < COLUNAS_QTD; c++) {
+            const naCartela = cartela.selecionadas[l][c] === 1 || cartela.selecionadas[l][c] === 2;
+            const noGab = gab.valores[l][c] === 1;
+            if (naCartela && noGab) acertos++;
+          }
+        }
+
+        acertosPorGabarito.push({ gabNome: `G${gIdx + 1}`, acertos });
+
+        if (faixasPontos[acertos] !== undefined) {
+          faixasPontos[acertos]++;
+        }
+
+        if (acertos > melhorDestaCartela) {
+          melhorDestaCartela = acertos;
+          gabaritoMelhorNome = `G${gIdx + 1}`;
+        }
+
+        if (acertos > melhorAcertoGeral) {
+          melhorAcertoGeral = acertos;
+          campeao = { gabaritoNome: `G${gIdx + 1}`, cartelaNumero: cartela.numeroCartela, acertos };
+        }
+      });
+
+      return {
+        numeroCartela: cartela.numeroCartela,
+        melhorAcerto: melhorDestaCartela,
+        melhorGabarito: gabaritoMelhorNome,
+        acertosPorGabarito
+      };
+    });
+
+    return {
+      faixasPontos,
+      campeao,
+      detalhePorCartela: detalhePorCartela.sort((a, b) => b.melhorAcerto - a.melhorAcerto),
+      totalCartelas: cartelasFixas.length,
+      totalGabaritos: gabaritos.length
+    };
+  }, [gabaritos, cartelasFixas]);
 
   useEffect(() => {
     const fixasSalvas = localStorage.getItem(STORAGE_CARTELAS_FIXAS_KEY);
@@ -1461,6 +1523,28 @@ export default function Gerador() {
           >
             📋 + Cartela Gabarito {gabaritos.length > 0 && `(${gabaritos.length})`}
           </button>
+            <button
+              type="button"
+              onClick={() => setRelatorioGeralAberto(true)}
+              disabled={gabaritos.length === 0}
+              style={{
+                background: '#ecfdf5',
+                color: '#047857',
+                border: '1px solid #6ee7b7',
+                borderRadius: 8,
+                padding: '10px 16px',
+                fontWeight: 800,
+                fontSize: 13,
+                cursor: gabaritos.length === 0 ? 'not-allowed' : 'pointer',
+                boxShadow: '0 2px 5px rgba(4, 120, 87, 0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6
+              }}
+              title="Ver resumo de todas as faixas premiadas e desempenho geral da bancada"
+            >
+              🏆 Relatório Geral {gabaritos.length > 0 && `(${gabaritos.length})`}
+            </button>
           <button
             type="button"
             style={styles.btnTelemetria}
@@ -1623,6 +1707,149 @@ export default function Gerador() {
           ))}
         </div>
       </div>
+
+      {relatorioGeralAberto && relatorioAuditoriaGeral && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 10000,
+          background: 'rgba(15, 23, 42, 0.75)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 16
+        }}>
+          <div style={{
+            background: '#ffffff',
+            border: '1px solid #cbd5e1',
+            borderRadius: 16,
+            width: '100%',
+            maxWidth: 720,
+            maxHeight: '90vh',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.3)',
+            overflow: 'hidden'
+          }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '14px 20px',
+              background: '#f8fafc',
+              borderBottom: '1px solid #e2e8f0'
+            }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: 16, fontWeight: 900, color: '#0f172a' }}>
+                  🏆 RELATÓRIO GERAL DE AUDITORIA DA BANCADA
+                </h2>
+                <span style={{ fontSize: 11, color: '#64748b' }}>
+                  Varredura de {relatorioAuditoriaGeral.totalGabaritos} gabaritos contra {relatorioAuditoriaGeral.totalCartelas} cartelas fixas
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRelatorioGeralAberto(false)}
+                style={{
+                  background: '#fee2e2',
+                  color: '#ef4444',
+                  border: 'none',
+                  borderRadius: 6,
+                  width: 28,
+                  height: 28,
+                  fontWeight: 900,
+                  cursor: 'pointer',
+                  fontSize: 13
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ padding: 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {relatorioAuditoriaGeral.campeao.acertos > 0 && (
+                <div style={{
+                  background: '#ecfdf5',
+                  border: '2px solid #34d399',
+                  borderRadius: 12,
+                  padding: '12px 16px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}>
+                  <div>
+                    <span style={{ fontSize: 11, fontWeight: 900, color: '#065f46', textTransform: 'uppercase' }}>
+                      🌟 Maior Pontuação da Rodada:
+                    </span>
+                    <div style={{ fontSize: 18, fontWeight: 900, color: '#047857' }}>
+                      {relatorioAuditoriaGeral.campeao.acertos} Pontos!
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right', fontSize: 12, fontWeight: 800, color: '#065f46' }}>
+                    Alcançado pelo <b>{relatorioAuditoriaGeral.campeao.gabaritoNome}</b><br />
+                    na <b>Cartela #{relatorioAuditoriaGeral.campeao.cartelaNumero}</b>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <span style={{ fontSize: 12, fontWeight: 900, color: '#334155', textTransform: 'uppercase', marginBottom: 8, display: 'block' }}>
+                  Distribuição de Prêmios e Acertos:
+                </span>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                  {[20, 19, 18, 17, 16, 15, 0, 14].map((pts) => {
+                    const qtd = relatorioAuditoriaGeral.faixasPontos[pts] || 0;
+                    const ehPremio = pts >= 15 || pts === 0;
+
+                    return (
+                      <div key={pts} style={{
+                        background: ehPremio && qtd > 0 ? '#f0fdf4' : '#f8fafc',
+                        border: ehPremio && qtd > 0 ? '1px solid #86efac' : '1px solid #e2e8f0',
+                        borderRadius: 8,
+                        padding: '8px 10px',
+                        textAlign: 'center'
+                      }}>
+                        <span style={{ fontSize: 11, fontWeight: 800, color: pts === 0 ? '#b45309' : ehPremio ? '#15803d' : '#64748b' }}>
+                          {pts === 0 ? '🎯 0 Pontos' : pts === 14 ? '⚠️ 14 Pontos' : `🏆 ${pts} Pontos`}
+                        </span>
+                        <div style={{ fontSize: 18, fontWeight: 900, color: ehPremio && qtd > 0 ? '#166534' : '#334155', marginTop: 2 }}>
+                          {qtd}x
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <span style={{ fontSize: 12, fontWeight: 900, color: '#334155', textTransform: 'uppercase', marginBottom: 8, display: 'block' }}>
+                  Melhor Desempenho por Cartela Fixa:
+                </span>
+                <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: 8 }}>
+                  {relatorioAuditoriaGeral.detalhePorCartela.map((item) => (
+                    <div key={item.numeroCartela} style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      padding: '6px 12px',
+                      borderBottom: '1px solid #f1f5f9',
+                      fontSize: 11,
+                      background: item.melhorAcerto >= 15 ? '#f0fdf4' : '#ffffff'
+                    }}>
+                      <span style={{ fontWeight: 800, color: '#1e293b' }}>
+                        Cartela #{item.numeroCartela}
+                      </span>
+                      <span style={{ color: item.melhorAcerto >= 15 ? '#15803d' : '#64748b', fontWeight: 800 }}>
+                        Melhor: <b>{item.melhorAcerto} pts</b> ({item.melhorGabarito})
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
