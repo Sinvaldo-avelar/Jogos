@@ -93,7 +93,7 @@ function CartaoMontarJogo({
             ? '1px solid #cbd5e1' 
             : '1px solid #e2e8f0',
         background: estaAguardandoTroca 
-          ? '#eff6ff'
+          ? '#eff6ff' 
           : '#ffffff',
         boxShadow: estaAguardandoTroca 
           ? '0 0 15px rgba(37, 99, 235, 0.35)' 
@@ -141,7 +141,7 @@ function CartaoMontarJogo({
               fontWeight: 800,
               cursor: 'pointer'
             }}
-            title={estaAguardandoTroca ? "Cancelar troca" : "Clique aqui e depois clique na outra cartela para trocar de posição"}
+            title={estaAguardandoTroca ? "Cancelar troca" : "Clique aqui e depois noutra cartela para trocar de posição"}
           >
             {estaAguardandoTroca ? 'Cancel ✕' : '⇄ Trocar'}
           </button>
@@ -363,28 +363,26 @@ export default function Gerador() {
   const [travaGeral, setTravaGeral] = useState(false);
   const [cartelasFixas, setCartelasFixas] = useState<CartelaFixa5x20Item[]>([]);
 
-  // Expansão do Relatório de Auditoria no Gabarito
   const [gabExpandidoId, setGabExpandidoId] = useState<number | null>(null);
-
-  // Troca a Longa Distância
   const [cartelaSelecionadaParaTroca, setCartelaSelecionadaParaTroca] = useState<number | null>(null);
 
-  // Estados do Raio-X
+  // Estados do Raio-X e Controlo Tático
   const [painelRaioXAberto, setPainelRaioXAberto] = useState(false);
   const [raioXPos, setRaioXPos] = useState({ x: 40, y: 100 });
   const [qtdVacuoTopo, setQtdVacuoTopo] = useState<number>(3);
   const [qtdVacuoBase, setQtdVacuoBase] = useState<number>(4);
   const [qtdGabaritosParaGerar, setQtdGabaritosParaGerar] = useState<number>(10);
+  const [tipoDivisaoVacuo, setTipoDivisaoVacuo] = useState<'livre' | 'bipolar'>('livre');
+  const [qtdVacuoTotalLivre, setQtdVacuoTotalLivre] = useState<number>(7);
+  // Lista de faixas autorizadas (se vazia, todas da zona são autorizadas)
   const [faixasCandidatasTopo, setFaixasCandidatasTopo] = useState<number[]>([]);
   const [faixasCandidatasBase, setFaixasCandidatasBase] = useState<number[]>([]);
-  const [modoSelecaoFaixas, setModoSelecaoFaixas] = useState<'auto_fracas' | 'manual_selecionadas'>('auto_fracas');
+  const [modoSelecaoFaixas, setModoSelecaoFaixas] = useState<'auto_fracas' | 'manual_selecionadas'>('manual_selecionadas');
 
   const gerarGradeVazia = () => Array(LINHAS_QTD).fill(0).map(() => Array(COLUNAS_QTD).fill(0));
 
   const relatorioAuditoriaGeral = useMemo(() => {
-    if (gabaritos.length === 0 || cartelasFixas.length === 0) {
-      return null;
-    }
+    if (gabaritos.length === 0 || cartelasFixas.length === 0) return null;
 
     const faixasPontos: Record<number, number> = {
       20: 0, 19: 0, 18: 0, 17: 0, 16: 0, 15: 0, 14: 0, 0: 0
@@ -522,7 +520,6 @@ export default function Gerador() {
     }
   };
 
-  // Funções Auxiliares de Diagnóstico de Faixas
   const getFaixasVazias = (grade: number[][]) => {
     const vazias: number[] = [];
     grade.forEach((linha, lIdx) => {
@@ -532,7 +529,6 @@ export default function Gerador() {
     return vazias;
   };
 
-  // 1. Agrupar por similaridade de falhas (clustering)
   const agruparPorSimilaridadeDeFalhas = () => {
     if (cartelasFixas.length <= 1) return;
 
@@ -563,7 +559,6 @@ export default function Gerador() {
     setCartelasFixas(ordenadas);
   };
 
-  // 2. Ordenações Estruturais
   const ordenarCartelasPor = (tipo: 'topo' | 'base' | 'qtdVazias' | 'numero') => {
     setCartelasFixas(prev => {
       const copia = [...prev];
@@ -712,7 +707,7 @@ export default function Gerador() {
 
   const limparTodosGabaritos = () => {
     if (gabaritos.length === 0) return;
-    if (window.confirm(`Tem certeza que deseja apagar todos os ${gabaritos.length} gabaritos?`)) {
+    if (window.confirm(`Tem a certeza que deseja apagar todos os ${gabaritos.length} gabaritos?`)) {
       setGabaritos([]);
       localStorage.removeItem(STORAGE_GABARITOS_KEY);
       setGabaritoAtivoParaComparacaoId(null);
@@ -751,7 +746,7 @@ export default function Gerador() {
     }));
   };
 
-  // --- ESTATÍSTICAS 100 DEZENAS ---
+  // Estatísticas de dezenas
   const estatisticas100 = useMemo(() => {
     const contadores: number[] = Array(100).fill(0);
 
@@ -790,7 +785,7 @@ export default function Gerador() {
     return { lista, ordenadosPorUso, naoUsados, maxQtd, totalJogos: cartelasFixas.length + salvos.length };
   }, [cartelasFixas, salvos]);
 
-  // --- ESTATÍSTICAS DAS 20 FAIXAS HORIZONTAIS ---
+  // Estatísticas das 20 faixas horizontais
   const estatisticasFaixasHorizontais = useMemo(() => {
     const contagemLinhas = Array(LINHAS_QTD).fill(0);
 
@@ -821,10 +816,7 @@ export default function Gerador() {
       };
     });
 
-    const faixasMaisVazias = [...faixas].sort((a, b) => a.qtd - b.qtd);
-    const faixasTotalmenteZeradas = faixas.filter(f => f.qtd === 0);
-
-    return { faixas, faixasMaisVazias, faixasTotalmenteZeradas };
+    return { faixas };
   }, [cartelasFixas, salvos]);
 
   const frequenciasBancada = useMemo(() => {
@@ -845,14 +837,17 @@ export default function Gerador() {
     return { pesoFaixa, freqDezena };
   }, [cartelasFixas]);
 
+  // Controlo de clique individual para selecionar faixas autorizadas
   const alternarFaixaCandidata = (faixa: number) => {
-    const ehTopo = faixa < 10;
-    const setCandidatas = ehTopo ? setFaixasCandidatasTopo : setFaixasCandidatasBase;
-    setCandidatas(prev => {
-      const grupo = ehTopo ? Array.from({ length: 10 }, (_, idx) => idx) : Array.from({ length: 10 }, (_, idx) => idx + 10);
-      const atuais = prev.length === 0 ? grupo : prev;
-      return atuais.includes(faixa) ? atuais.filter(idx => idx !== faixa) : [...atuais, faixa].sort((a, b) => a - b);
-    });
+    if (faixa < 10) {
+      setFaixasCandidatasTopo(prev => 
+        prev.includes(faixa) ? prev.filter(f => f !== faixa) : [...prev, faixa].sort((a, b) => a - b)
+      );
+    } else {
+      setFaixasCandidatasBase(prev => 
+        prev.includes(faixa) ? prev.filter(f => f !== faixa) : [...prev, faixa].sort((a, b) => a - b)
+      );
+    }
   };
 
   const alternarDezenaNoGabaritoAtivo = (valorBruto: number) => {
@@ -887,123 +882,77 @@ export default function Gerador() {
     }));
   };
 
-  // --- MODO TÁTICO BIPOLAR: NORTE/SUL + FREQUÊNCIA INTELIGENTE ---
+  const faixasMarcadas = [...faixasCandidatasTopo, ...faixasCandidatasBase];
+  const poolCorte = faixasMarcadas.length > 0
+    ? Array.from(new Set(faixasMarcadas)).sort((a, b) => a - b)
+    : Array.from({ length: 20 }, (_, i) => i);
+
   const exportarTopParaGabarito = () => {
-    const faixasSuperiores = Array.from({ length: 10 }, (_, idx) => idx);
-    const faixasInferiores = Array.from({ length: 10 }, (_, idx) => idx + 10);
-    const embaralhar = <T,>(lista: T[]) => [...lista].sort(() => Math.random() - 0.5);
-    const obterPool = (grupo: number[], candidatas: number[]) => {
-      const base = candidatas.length > 0 ? candidatas.filter(faixa => grupo.includes(faixa)) : grupo;
-      if (modoSelecaoFaixas === 'manual_selecionadas') return base;
-      return [...base].sort((a, b) => frequenciasBancada.pesoFaixa[a] - frequenciasBancada.pesoFaixa[b]);
-    };
-
-    const poolTopo = obterPool(faixasSuperiores, faixasCandidatasTopo);
-    const poolBase = obterPool(faixasInferiores, faixasCandidatasBase);
-
-    if (qtdVacuoTopo > poolTopo.length || qtdVacuoBase > poolBase.length) {
-      alert('A quantidade de vácuos não pode ser maior que a quantidade de faixas candidatas em cada metade.');
-      return;
-    }
-
-    const faixasAtivasMinimas = 20 - qtdVacuoTopo - qtdVacuoBase;
-    if (faixasAtivasMinimas * COLUNAS_QTD < 50) {
-      alert('As faixas ativas precisam comportar pelo menos 50 dezenas. Reduza a quantidade de vácuos.');
-      return;
-    }
-
-    const escolherFaixas = (pool: number[], quantidade: number, indiceGeracao: number) => {
-      if (modoSelecaoFaixas === 'manual_selecionadas') {
-        return embaralhar(pool).slice(0, quantidade).sort((a, b) => a - b);
+    const shuffle = <T,>(arr: T[]): T[] => {
+      const c = [...arr];
+      for (let i = c.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [c[i], c[j]] = [c[j], c[i]];
       }
-
-      const janela = Math.min(pool.length, quantidade + Math.min(4, pool.length - quantidade));
-      const deslocamento = pool.length > 0 ? indiceGeracao % pool.length : 0;
-      const poolVariavel = [...pool.slice(deslocamento), ...pool.slice(0, deslocamento)].slice(0, janela);
-      return embaralhar(poolVariavel).slice(0, quantidade).sort((a, b) => a - b);
+      return c;
     };
-    const gerarAssinatura = (faixas: number[]) => faixas.join(',');
-    const assinaturasUsadas = new Set<string>();
+
     const novosGabaritos: Gabarito5x20[] = [];
-    const frequenciasBase = frequenciasBancada.freqDezena;
-    const quantidadeParaGerar = Math.max(1, Math.floor(qtdGabaritosParaGerar) || 1);
     const idBase = Date.now();
 
-    for (let i = 0; i < quantidadeParaGerar; i++) {
-      let vaziasTopo: number[] = [];
-      let vaziasBase: number[] = [];
-      let assinatura = '';
-      let tentativas = 0;
+    for (let i = 0; i < qtdGabaritosParaGerar; i++) {
+      // Todas as faixas verdes selecionadas são proibidas neste gabarito.
+      const faixasVazias = [...poolCorte];
+      const setVazias = new Set(faixasVazias);
 
-      do {
-        vaziasTopo = escolherFaixas(poolTopo, qtdVacuoTopo, i + tentativas);
-        vaziasBase = escolherFaixas(poolBase, qtdVacuoBase, i + tentativas * 3);
-        assinatura = gerarAssinatura([...vaziasTopo, ...vaziasBase]);
-        tentativas++;
-      } while (assinaturasUsadas.has(assinatura) && tentativas < 100);
+      const faixasAtivas: number[] = [];
+      for (let l = 0; l < 20; l++) {
+        if (!setVazias.has(l)) {
+          faixasAtivas.push(l);
+        }
+      }
 
-      assinaturasUsadas.add(assinatura);
-      const faixasVaziasDesteGab = new Set([...vaziasTopo, ...vaziasBase]);
-      const dezenasDisponiveis = Array.from({ length: 100 }, (_, dezena) => dezena)
-        .filter(dezena => !faixasVaziasDesteGab.has(Math.floor(dezena / COLUNAS_QTD)));
+      const dezenasDisponiveis = faixasAtivas.flatMap(linha =>
+        Array.from({ length: COLUNAS_QTD }, (_, coluna) => linha * COLUNAS_QTD + coluna)
+      );
 
       if (dezenasDisponiveis.length < 50) {
-        alert('As dezenas disponíveis nas faixas ativas não somam 50 números.');
+        alert('As faixas brancas disponíveis não somam 50 dezenas. Selecione exatamente 10 faixas verdes.');
         return;
       }
 
-      const ranking = embaralhar(dezenasDisponiveis).sort((a, b) => frequenciasBase[b] - frequenciasBase[a]);
-      const metadeRanking = Math.ceil(ranking.length / 2);
-      const grupoQuente = embaralhar(ranking.slice(0, metadeRanking));
-      const grupoFrio = embaralhar(ranking.slice(metadeRanking));
-      const metaQuente = Math.min(30, grupoQuente.length);
-      const metaFrio = Math.min(20, grupoFrio.length);
-      const selecionadosBase = [
-        ...grupoQuente.slice(0, metaQuente),
-        ...grupoFrio.slice(0, metaFrio)
-      ];
-      const restantes = ranking.filter(dezena => !selecionadosBase.includes(dezena));
-      const selecionados = embaralhar([
-        ...selecionadosBase,
-        ...restantes.slice(0, 50 - selecionadosBase.length)
-      ]);
+      const grade = Array(20).fill(0).map(() => Array(5).fill(0));
+      const dezenasSorteadas = dezenasDisponiveis.length === 50
+        ? dezenasDisponiveis
+        : shuffle(dezenasDisponiveis).slice(0, 50);
 
-      if (selecionados.length < 50) {
-        alert('Não foi possível preencher exatamente 50 dezenas neste gabarito.');
-        return;
-      }
-
-      const novaGrade = gerarGradeVazia();
-      selecionados.forEach(dezena => {
-        const linha = Math.floor(dezena / COLUNAS_QTD);
-        const col = dezena % COLUNAS_QTD;
-        novaGrade[linha][col] = 1;
+      dezenasSorteadas.forEach(dezena => {
+        const linha = Math.floor(dezena / 5);
+        const coluna = dezena % 5;
+        if (!setVazias.has(linha)) {
+          grade[linha][coluna] = 1;
+        }
       });
 
       novosGabaritos.push({
         id: idBase + i,
-        x: 150 + ((gabaritos.length + i) % 4) * 35,
-        y: 120 + ((gabaritos.length + i) % 4) * 35,
-        valores: novaGrade,
-        corIdx: (gabaritos.length + i) % CORES_GABARITO.length,
+        x: 130 + ((gabaritos.length + i) % 5) * 30,
+        y: 100 + ((gabaritos.length + i) % 5) * 30,
+        valores: grade,
+        corIdx: (gabaritos.length + i) % CORES_GABARITO.length
       });
     }
 
     setGabaritos(prev => [...prev, ...novosGabaritos]);
   };
-
-  // --- MOTOR DE AUDITORIA REVERSA: COMPARA GABARITO COM TODAS AS CARTELAS FIXAS ---
- // --- MOTOR DE AUDITORIA REVERSA CALIBRADO ---
   const auditarGabaritoContraCartelas = (gabValores: number[][]) => {
     const resultados: { numeroCartela: number; acertos: number; ehPremiada: boolean }[] = [];
 
-    // Conta quantos números estão de facto marcados neste gabarito
     const totalMarcadosNoGabarito = gabValores.reduce(
       (acc, linha) => acc + linha.filter(v => v === 1).length,
       0
     );
 
-    // Se o gabarito estiver vazio ou incompleto (< 15 dezenas), não valida prémios
     if (totalMarcadosNoGabarito < 15) {
       return { totalAuditadas: 0, resultados: [], premiadas: [] };
     }
@@ -1023,7 +972,6 @@ export default function Gerador() {
       }
 
       if (marcadasNaCartela >= 15) {
-        // Só considera os 0 pontos como prémio real se o gabarito tiver de facto dezenas suficientes (ex: 20 a 50)
         const ehPremiada = acertos >= 15 || (acertos === 0 && totalMarcadosNoGabarito >= 20);
         resultados.push({
           numeroCartela: c.numeroCartela,
@@ -1052,13 +1000,13 @@ export default function Gerador() {
   return (
     <div style={{ ...styles.container, padding: isMobile ? '10px' : '40px 20px' }}>
       
-      {/* BARRA FIXA DE ALERTA QUANDO UMA CARTELA ESTIVER AGUARDANDO TROCA */}
+      {/* ALERTA DE TROCA DE POSIÇÃO */}
       {cartelaSelecionadaParaTroca !== null && (
         <div style={styles.alertaTrocaAtiva}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 16 }}>⇄</span>
             <span>
-              Cartela <b>#{cartelasFixas[cartelaSelecionadaParaTroca]?.numeroCartela}</b> selecionada! Role e clique no botão <b>[⇄ Trocar]</b> de qualquer outra cartela para inverter.
+              Cartela <b>#{cartelasFixas[cartelaSelecionadaParaTroca]?.numeroCartela}</b> selecionada! Role e clique no botão <b>[⇄ Trocar]</b> de qualquer outra cartela.
             </span>
           </div>
           <button
@@ -1071,23 +1019,23 @@ export default function Gerador() {
         </div>
       )}
 
-      {/* PAINEL FLUTUANTE DO RAIO-X */}
+      {/* PAINEL FLUTUANTE DO RAIO-X COM CONTROLO TÁTICO COMPLETO */}
       {painelRaioXAberto && (
         <div style={{
           ...styles.janelaFlutuanteRaioX,
           left: isMobile ? 10 : raioXPos.x,
           top: isMobile ? 10 : raioXPos.y,
-          width: isMobile ? '95%' : 600,
+          width: isMobile ? '95%' : 640,
         }}>
           <div 
             onMouseDown={iniciarArrastoRaioX}
             style={styles.alcaJanelaFlutuante}
-            title="Clique e arraste para reposicionar esta janela"
+            title="Clique e arraste para mover"
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ fontSize: 13 }}>✥</span>
               <span style={{ fontSize: 12, fontWeight: 900, color: '#0f172a' }}>
-                RAIO-X • CONTROLE MANUAL DE FAIXAS VAZIAS (HORIZONTAIS)
+                PAINEL TÁTICO • CONTROLO LIVRE DE VÁCUOS E FAIXAS
               </span>
             </div>
             <button 
@@ -1100,22 +1048,21 @@ export default function Gerador() {
 
           <div style={styles.corpoFlutuante}>
             
-            {/* PAINEL DE FAIXAS COM TRAVAS */}
+            {/* SELEÇÃO DAS FAIXAS AUTORIZADAS PARA VÁCUO */}
             <div style={{
-              background: '#f8fafc',
-              border: '1px solid #e2e8f0',
+              background: '#ffffff',
+              border: '1px solid #cbd5e1',
               borderRadius: 8,
-              padding: '8px 10px',
+              padding: '10px',
               display: 'flex',
               flexDirection: 'column',
-              gap: 6
+              gap: 8
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
-                <span style={{ fontSize: 11, fontWeight: 900, color: '#1e293b', textTransform: 'uppercase' }}>
-                  🎯 Faixas elegíveis para o rodízio de vácuo:
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 11, fontWeight: 900, color: '#1e293b' }}>
+                  🎯 CLIQUE NAS FAIXAS ONDE O VÁCUO PODE ATUAR:
                 </span>
-                
-                <div style={{ display: 'flex', gap: 4 }}>
+                <div style={{ display: 'flex', gap: 6 }}>
                   <button
                     type="button"
                     onClick={() => {
@@ -1123,154 +1070,223 @@ export default function Gerador() {
                       setFaixasCandidatasBase([]);
                     }}
                     style={styles.btnAutoTrava}
-                    title="Autorizar todas as faixas novamente"
                   >
-                    ↺ Todas
+                    ↺ Resetar (Todas Livres)
                   </button>
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, minmax(0, 1fr))', gap: 4, padding: 2 }}>
-                {estatisticasFaixasHorizontais.faixas.map((f) => {
-                  const candidatas = f.linhaIdx < 10 ? faixasCandidatasTopo : faixasCandidatasBase;
-                  const estaAutorizada = candidatas.length === 0 || candidatas.includes(f.linhaIdx);
-
-                  return (
-                    <button
-                      key={f.linhaIdx}
-                      type="button"
-                      onClick={() => alternarFaixaCandidata(f.linhaIdx)}
-                      title={`Clique para ${estaAutorizada ? 'restringir' : 'autorizar'} a faixa [${f.rotulo}] no rodízio`}
-                      style={{
-                        background: estaAutorizada ? (f.linhaIdx < 10 ? '#e0f2fe' : '#fef3c7') : '#f1f5f9',
-                        border: estaAutorizada ? '2px solid #38bdf8' : '1px solid #cbd5e1',
-                        color: estaAutorizada ? '#0f172a' : '#94a3b8',
-                        fontSize: 10,
-                        fontWeight: 800,
-                        padding: '3px 4px',
-                        borderRadius: 4,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
-                      }}
-                    >
-                      <span>{f.rotulo}</span>
-                      <span style={{ fontSize: 9, opacity: 0.85 }}>
-                        {estaAutorizada ? `${f.qtd}x` : '—'}
-                      </span>
-                    </button>
-                  );
-                })}
+              {/* Grid Topo (01-50) */}
+              <div>
+                <span style={{ fontSize: 10, fontWeight: 800, color: '#0369a1', display: 'block', marginBottom: 3 }}>
+                  Parte Superior (Faixas 0 a 9 | Dezenas 01 a 50) — {faixasCandidatasTopo.length === 0 ? "Todas as 10 autorizadas" : `${faixasCandidatasTopo.length} selecionadas`}:
+                </span>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 3 }}>
+                  {estatisticasFaixasHorizontais.faixas.slice(0, 10).map((f) => {
+                    const selecionada = faixasCandidatasTopo.includes(f.linhaIdx);
+                    return (
+                      <button
+                        key={f.linhaIdx}
+                        type="button"
+                        onClick={() => alternarFaixaCandidata(f.linhaIdx)}
+                        style={{
+                          background: selecionada ? '#10b981' : '#f1f5f9',
+                          color: selecionada ? '#ffffff' : '#334155',
+                          border: selecionada ? '2px solid #059669' : '1px solid #cbd5e1',
+                          borderRadius: 4,
+                          padding: '4px 2px',
+                          fontSize: 9,
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center'
+                        }}
+                        title={`Faixa [${f.rotulo}]: ${f.qtd} dezenas na bancada. Clique para ${selecionada ? 'remover' : 'incluir'} no rodízio de vácuo`}
+                      >
+                        <span>{f.rotulo}</span>
+                        <span style={{ fontSize: 8, opacity: 0.9 }}>{f.qtd}x</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#64748b' }}>
-                <span>Faixas autorizadas: <b>{(faixasCandidatasTopo.length || 10) + (faixasCandidatasBase.length || 10)} de 20</b></span>
-                <span>Seleção: <b>{modoSelecaoFaixas === 'auto_fracas' ? 'Auto. pelas mais fracas' : 'Somente faixas clicadas'}</b></span>
+              {/* Grid Base (51-00) */}
+              <div>
+                <span style={{ fontSize: 10, fontWeight: 800, color: '#b45309', display: 'block', marginBottom: 3 }}>
+                  Parte Inferior (Faixas 10 a 19 | Dezenas 51 a 00) — {faixasCandidatasBase.length === 0 ? "Todas as 10 autorizadas" : `${faixasCandidatasBase.length} selecionadas`}:
+                </span>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 3 }}>
+                  {estatisticasFaixasHorizontais.faixas.slice(10, 20).map((f) => {
+                    const selecionada = faixasCandidatasBase.includes(f.linhaIdx);
+                    return (
+                      <button
+                        key={f.linhaIdx}
+                        type="button"
+                        onClick={() => alternarFaixaCandidata(f.linhaIdx)}
+                        style={{
+                          background: selecionada ? '#10b981' : '#f1f5f9',
+                          color: selecionada ? '#ffffff' : '#334155',
+                          border: selecionada ? '2px solid #059669' : '1px solid #cbd5e1',
+                          borderRadius: 4,
+                          padding: '4px 2px',
+                          fontSize: 9,
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center'
+                        }}
+                        title={`Faixa [${f.rotulo}]: ${f.qtd} dezenas na bancada. Clique para ${selecionada ? 'remover' : 'incluir'} no rodízio de vácuo`}
+                      >
+                        <span>{f.rotulo}</span>
+                        <span style={{ fontSize: 8, opacity: 0.9 }}>{f.qtd}x</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
-            {/* MODO TÁTICO BIPOLAR */}
+          {/* CONTROLES DE QUANTIDADES DINÂMICAS */}
             <div style={{
+              background: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              borderRadius: 8,
+              padding: '10px',
               display: 'flex',
               flexDirection: 'column',
-              gap: 8,
-              background: '#f8fafc',
-              padding: '10px',
-              borderRadius: 8,
-              border: '1px solid #e2e8f0'
+              gap: 10
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 900, color: '#0f172a' }}>
-                    Modo Tático Bipolar
-                  </div>
-                  <div style={{ fontSize: 10, color: '#64748b' }}>
-                    Norte/Sul + Frequência Inteligente
-                  </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 12, fontWeight: 900, color: '#0f172a' }}>
+                    ⚙️ Distribuição do Vácuo:
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setTipoDivisaoVacuo(prev => prev === 'livre' ? 'bipolar' : 'livre')}
+                    style={{
+                      background: tipoDivisaoVacuo === 'livre' ? '#e0f2fe' : '#fef3c7',
+                      color: tipoDivisaoVacuo === 'livre' ? '#0369a1' : '#b45309',
+                      border: tipoDivisaoVacuo === 'livre' ? '1px solid #38bdf8' : '1px solid #f59e0b',
+                      borderRadius: 6,
+                      padding: '3px 8px',
+                      fontSize: 11,
+                      fontWeight: 800,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {tipoDivisaoVacuo === 'livre' ? '🎯 Modo Livre (Toda a Cartela)' : '⚖️ Modo Bipolar (Topo + Base)'}
+                  </button>
                 </div>
-                <span style={{ fontSize: 10, fontWeight: 900, color: '#0369a1' }}>
-                  Total de Faixas Vazias: {qtdVacuoTopo + qtdVacuoBase} | Faixas Ativas: {20 - qtdVacuoTopo - qtdVacuoBase}
+
+                <span style={{ fontSize: 11, fontWeight: 900, color: '#0369a1', background: '#e0f2fe', padding: '3px 8px', borderRadius: 6 }}>
+                  Total de Vácuos: {tipoDivisaoVacuo === 'livre' ? qtdVacuoTotalLivre : (qtdVacuoTopo + qtdVacuoBase)} faixas
                 </span>
               </div>
 
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {[
-                  { label: 'Vácuos no Topo (01-50)', value: qtdVacuoTopo, setValue: setQtdVacuoTopo },
-                  { label: 'Vácuos na Base (51-00)', value: qtdVacuoBase, setValue: setQtdVacuoBase }
-                ].map((controle) => (
-                  <div key={controle.label} style={{ display: 'flex', alignItems: 'center', gap: 4, flex: '1 1 210px' }}>
-                    <span style={{ fontSize: 10, fontWeight: 800, color: '#475569' }}>{controle.label}:</span>
-                    <button
-                      type="button"
-                      onClick={() => controle.setValue(prev => Math.max(0, prev - 1))}
-                      style={{ ...styles.btnAcaoMini, width: 22, height: 22 }}
-                      title="Diminuir quantidade de vácuos"
-                    >
-                      −
-                    </button>
+              {/* Controles Dinâmicos dependendo do Modo Escolhido */}
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+                {tipoDivisaoVacuo === 'livre' ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: '#334155' }}>Quantos Vácuos no Total:</span>
+                    <button type="button" onClick={() => setQtdVacuoTotalLivre(p => Math.max(1, p - 1))} style={styles.btnAcaoMini}>−</button>
                     <input
                       type="number"
-                      min={0}
+                      min={1}
                       max={10}
-                      value={controle.value}
-                      onChange={(e) => controle.setValue(Math.max(0, Math.min(10, Number(e.target.value) || 0)))}
-                      style={{ width: 42, padding: '3px 4px', fontSize: 12, fontWeight: 800, textAlign: 'center', borderRadius: 6, border: '1px solid #cbd5e1', outline: 'none', color: '#0f172a', background: '#fff' }}
+                      value={qtdVacuoTotalLivre}
+                      onChange={(e) => setQtdVacuoTotalLivre(Math.max(1, Math.min(10, Number(e.target.value) || 1)))}
+                      style={{ width: 44, padding: '3px', textAlign: 'center', fontWeight: 800, borderRadius: 4, border: '1px solid #cbd5e1' }}
                     />
-                    <button
-                      type="button"
-                      onClick={() => controle.setValue(prev => Math.min(10, prev + 1))}
-                      style={{ ...styles.btnAcaoMini, width: 22, height: 22 }}
-                      title="Aumentar quantidade de vácuos"
-                    >
-                      +
-                    </button>
+                    <button type="button" onClick={() => setQtdVacuoTotalLivre(p => Math.min(10, p + 1))} style={styles.btnAcaoMini}>+</button>
+                    <span style={{ fontSize: 10, color: '#64748b' }}>
+                      (sorteando entre as {(faixasCandidatasTopo.length + faixasCandidatasBase.length) || 20} faixas autorizadas)
+                    </span>
                   </div>
-                ))}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, flex: '1 1 210px' }}>
-                  <span style={{ fontSize: 10, fontWeight: 800, color: '#475569' }}>Gabaritos:</span>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <span style={{ fontSize: 11, fontWeight: 800, color: '#334155' }}>Vácuos no Topo:</span>
+                      <button type="button" onClick={() => setQtdVacuoTopo(p => Math.max(0, p - 1))} style={styles.btnAcaoMini}>−</button>
+                      <input
+                        type="number"
+                        min={0}
+                        max={10}
+                        value={qtdVacuoTopo}
+                        onChange={(e) => setQtdVacuoTopo(Math.max(0, Math.min(10, Number(e.target.value) || 0)))}
+                        style={{ width: 44, padding: '3px', textAlign: 'center', fontWeight: 800, borderRadius: 4, border: '1px solid #cbd5e1' }}
+                      />
+                      <button type="button" onClick={() => setQtdVacuoTopo(p => Math.min(10, p + 1))} style={styles.btnAcaoMini}>+</button>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <span style={{ fontSize: 11, fontWeight: 800, color: '#334155' }}>Vácuos na Base:</span>
+                      <button type="button" onClick={() => setQtdVacuoBase(p => Math.max(0, p - 1))} style={styles.btnAcaoMini}>−</button>
+                      <input
+                        type="number"
+                        min={0}
+                        max={10}
+                        value={qtdVacuoBase}
+                        onChange={(e) => setQtdVacuoBase(Math.max(0, Math.min(10, Number(e.target.value) || 0)))}
+                        style={{ width: 44, padding: '3px', textAlign: 'center', fontWeight: 800, borderRadius: 4, border: '1px solid #cbd5e1' }}
+                      />
+                      <button type="button" onClick={() => setQtdVacuoBase(p => Math.min(10, p + 1))} style={styles.btnAcaoMini}>+</button>
+                    </div>
+                  </>
+                )}
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: '#334155' }}>Qtd Gabaritos:</span>
                   <input
                     type="number"
                     min={1}
                     value={qtdGabaritosParaGerar}
                     onChange={(e) => setQtdGabaritosParaGerar(Math.max(1, Number(e.target.value) || 1))}
-                    style={{ width: 58, padding: '3px 4px', fontSize: 12, fontWeight: 800, textAlign: 'center', borderRadius: 6, border: '1px solid #cbd5e1', outline: 'none', color: '#0f172a', background: '#fff' }}
+                    style={{ width: 55, padding: '3px', textAlign: 'center', fontWeight: 800, borderRadius: 4, border: '1px solid #cbd5e1' }}
                   />
                 </div>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 10, fontWeight: 800, color: '#475569' }}>Modo de seleção:</span>
-                <select
-                  value={modoSelecaoFaixas}
-                  onChange={(e) => setModoSelecaoFaixas(e.target.value as 'auto_fracas' | 'manual_selecionadas')}
-                  style={{ padding: '4px 6px', borderRadius: 6, border: '1px solid #cbd5e1', color: '#334155', background: '#ffffff', fontSize: 10, fontWeight: 800 }}
-                >
-                  <option value="auto_fracas">Automático: faixas mais fracas</option>
-                  <option value="manual_selecionadas">Manual: somente faixas clicadas</option>
-                </select>
-                <span style={{ fontSize: 10, color: '#64748b' }}>Faixas vazias variam apenas dentro das autorizadas.</span>
-              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: '#334155' }}>Seleção:</span>
+                  <select
+                    value={modoSelecaoFaixas}
+                    onChange={(e) => setModoSelecaoFaixas(e.target.value as any)}
+                    style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: 11, fontWeight: 800 }}
+                  >
+                    <option value="manual_selecionadas">Sorteio Livre nas Faixas Clicadas</option>
+                    <option value="auto_fracas">Priorizar as Mais Fracas da Bancada</option>
+                  </select>
+                </div>
 
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                 <button
                   type="button"
                   onClick={exportarTopParaGabarito}
-                  style={{ background: '#0284c7', color: '#ffffff', border: 'none', borderRadius: 6, padding: '7px 14px', fontSize: 11, fontWeight: 800, cursor: 'pointer', boxShadow: '0 2px 4px rgba(2, 132, 199, 0.25)' }}
-                  title="Gera um gabarito de 50 dezenas usando o equilíbrio bipolar e a frequência da bancada"
+                  style={{
+                    background: '#0284c7',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: 6,
+                    padding: '8px 16px',
+                    fontSize: 12,
+                    fontWeight: 900,
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 4px rgba(2, 132, 199, 0.3)'
+                  }}
                 >
-                  ⚡ Gerar Gabaritos Táticos Balanceados
+                  ⚡ Gerar {qtdGabaritosParaGerar} Gabarito(s)
                 </button>
-                <span style={{ fontSize: 10, color: '#64748b' }}>Cada geração seleciona 50 dezenas nas faixas ativas.</span>
               </div>
             </div>
 
-            {/* Mapa 10x10 Interativo */}
+            {/* Mapa 10x10 de Dezenas */}
             <div style={styles.gridMapaCalorFlutuante}>
               {estatisticas100.lista.map(item => {
                 const linhaDaDezena = Math.floor((item.valorBruto - 1) / COLUNAS_QTD);
-                const candidatasMapa = linhaDaDezena < 10 ? faixasCandidatasTopo : faixasCandidatasBase;
-                const faixaBloqueada = candidatasMapa.length > 0 && !candidatasMapa.includes(linhaDaDezena);
                 const semUso = item.qtd === 0;
                 const maisUsado = item.qtd >= estatisticas100.maxQtd && item.qtd > 1;
 
@@ -1279,39 +1295,31 @@ export default function Gerador() {
                     key={item.numero}
                     type="button"
                     onClick={() => alternarDezenaNoGabaritoAtivo(item.valorBruto)}
-                    title={`Dezena ${item.numero} (${item.qtd}x). ${faixaBloqueada ? '[FAIXA TRAVADA VAZIA]' : 'Clique para marcar no Gabarito!'}`}
+                    title={`Dezena ${item.numero} (${item.qtd}x). Clique para marcar no último Gabarito`}
                     style={{
                       ...styles.celulaMapaFlutuante,
-                      background: faixaBloqueada ? '#fee2e2' : semUso ? '#f8fafc' : maisUsado ? '#dcfce7' : '#e0f2fe',
-                      borderColor: faixaBloqueada ? '#fca5a5' : semUso ? '#e2e8f0' : maisUsado ? '#86efac' : '#bae6fd',
-                      opacity: faixaBloqueada ? 0.35 : semUso ? 0.45 : 1,
+                      background: semUso ? '#f8fafc' : maisUsado ? '#dcfce7' : '#e0f2fe',
+                      borderColor: semUso ? '#e2e8f0' : maisUsado ? '#86efac' : '#bae6fd',
+                      opacity: semUso ? 0.45 : 1,
                       cursor: 'pointer'
                     }}
                   >
-                    <span style={{ fontSize: 11, fontWeight: 800, color: faixaBloqueada ? '#b91c1c' : semUso ? '#94a3b8' : maisUsado ? '#15803d' : '#0369a1' }}>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: semUso ? '#94a3b8' : maisUsado ? '#15803d' : '#0369a1' }}>
                       {item.numero}
                     </span>
-                    <span style={{
-                      fontSize: 8,
-                      fontWeight: 800,
-                      color: faixaBloqueada ? '#ef4444' : semUso ? '#94a3b8' : maisUsado ? '#166534' : '#1e40af'
-                    }}>
-                      {faixaBloqueada ? '✕' : `${item.qtd}x`}
+                    <span style={{ fontSize: 8, fontWeight: 800, color: semUso ? '#94a3b8' : maisUsado ? '#166534' : '#1e40af' }}>
+                      {item.qtd}x
                     </span>
                   </button>
                 );
               })}
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, color: '#64748b' }}>
-              <span>Zonas mortas: <b>{estatisticas100.naoUsados.length} dezenas</b></span>
-              <span>Distribuição: <b>60% mais frequentes / 40% menos frequentes</b></span>
-            </div>
           </div>
         </div>
       )}
 
-      {/* Camada dos Gabaritos Flutuantes COM AUDITORIA REVERSA */}
+      {/* Camada dos Gabaritos Flutuantes */}
       {gabaritos.map((gab, idx) => {
         const cor = CORES_GABARITO[gab.corIdx];
         const marcadosNoGabarito = gab.valores.reduce(
@@ -1319,7 +1327,6 @@ export default function Gerador() {
           0
         );
 
-        // Auditoria instantânea deste gabarito contra todas as cartelas da bancada
         const auditoria = auditarGabaritoContraCartelas(gab.valores);
         const estaExpandido = gabExpandidoId === gab.id;
 
@@ -1337,7 +1344,7 @@ export default function Gerador() {
             <div
               onMouseDown={(e) => iniciarArrastoGabarito(e, gab)}
               style={styles.alcaGabarito}
-              title="Clique e arraste para movimentar este gabarito"
+              title="Clique e arraste para movimentar"
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                 <span style={{ fontSize: 11, fontWeight: 900, color: cor.borda }}>G{idx + 1}</span>
@@ -1358,7 +1365,7 @@ export default function Gerador() {
                     cursor: 'pointer',
                     color: auditoria.premiadas.length > 0 ? '#b45309' : '#475569'
                   }}
-                  title="Ver auditoria detalhada de pontuação de todas as cartelas"
+                  title="Ver auditoria detalhada"
                 >
                   {estaExpandido ? "▲ Fechar" : `🏆 ${auditoria.premiadas.length}`}
                 </button>
@@ -1370,7 +1377,7 @@ export default function Gerador() {
               </div>
             </div>
 
-            {/* SELO DE AUDITORIA REVERSA INSTANTÂNEA */}
+            {/* Selo de Premiação Instantâneo */}
             <div style={{
               width: '100%',
               background: auditoria.premiadas.length > 0 ? '#ecfdf5' : '#ffffff',
@@ -1412,11 +1419,10 @@ export default function Gerador() {
                 </div>
               ) : (
                 <div style={{ color: '#64748b', textAlign: 'center', fontSize: 9 }}>
-                  Nenhuma cartela com 15+ ou 0 pts ainda
+                  Nenhuma cartela com 15+ ou 0 pts
                 </div>
               )}
 
-              {/* Tabela Retrátil Detalhada */}
               {estaExpandido && (
                 <div style={{
                   marginTop: 4,
@@ -1503,7 +1509,7 @@ export default function Gerador() {
               ...styles.btnRaioX,
               background: painelRaioXAberto ? '#0369a1' : '#0284c7',
             }}
-            title="Abrir painel flutuante de frequência das dezenas"
+            title="Abrir painel flutuante tático"
           >
             {painelRaioXAberto ? "📊 Fechar Raio-X" : "📊 Abrir Raio-X Flutuante"}
           </button>
@@ -1517,7 +1523,6 @@ export default function Gerador() {
               color: travaGeral ? '#b91c1c' : '#15803d',
               border: travaGeral ? '1px solid #f87171' : '1px solid #86efac',
             }}
-            title={travaGeral ? "Cartelas travadas contra cliques" : "Travar todas as cartelas"}
           >
             {travaGeral ? "🔒 TRAVA GERAL: LIGADA" : "🔓 TRAVA GERAL: LIVRE"}
           </button>
@@ -1530,13 +1535,14 @@ export default function Gerador() {
             ➕ Adicionar Cartela ({cartelasFixas.length})
           </button>
           
-         <button
+          <button
             type="button"
             style={styles.btnNovoGabarito}
             onClick={adicionarGabarito}
           >
             📋 + Cartela Gabarito {gabaritos.length > 0 && `(${gabaritos.length})`}
           </button>
+
           {gabaritos.length > 0 && (
             <button
               type="button"
@@ -1555,33 +1561,35 @@ export default function Gerador() {
                 alignItems: 'center',
                 gap: 6
               }}
-              title="Apagar todos os gabaritos da tela para reiniciar a bancada"
+              title="Apagar todos os gabaritos da tela"
             >
               🗑️ Limpar Gabaritos ({gabaritos.length})
             </button>
           )}
-            <button
-              type="button"
-              onClick={() => setRelatorioGeralAberto(true)}
-              disabled={gabaritos.length === 0}
-              style={{
-                background: '#ecfdf5',
-                color: '#047857',
-                border: '1px solid #6ee7b7',
-                borderRadius: 8,
-                padding: '10px 16px',
-                fontWeight: 800,
-                fontSize: 13,
-                cursor: gabaritos.length === 0 ? 'not-allowed' : 'pointer',
-                boxShadow: '0 2px 5px rgba(4, 120, 87, 0.15)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6
-              }}
-              title="Ver resumo de todas as faixas premiadas e desempenho geral da bancada"
-            >
-              🏆 Relatório Geral {gabaritos.length > 0 && `(${gabaritos.length})`}
-            </button>
+
+          <button
+            type="button"
+            onClick={() => setRelatorioGeralAberto(true)}
+            disabled={gabaritos.length === 0}
+            style={{
+              background: '#ecfdf5',
+              color: '#047857',
+              border: '1px solid #6ee7b7',
+              borderRadius: 8,
+              padding: '10px 16px',
+              fontWeight: 800,
+              fontSize: 13,
+              cursor: gabaritos.length === 0 ? 'not-allowed' : 'pointer',
+              boxShadow: '0 2px 5px rgba(4, 120, 87, 0.15)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6
+            }}
+            title="Ver resumo de premiação geral"
+          >
+            🏆 Relatório Geral {gabaritos.length > 0 && `(${gabaritos.length})`}
+          </button>
+
           <button
             type="button"
             style={styles.btnTelemetria}
@@ -1592,7 +1600,6 @@ export default function Gerador() {
                 'width=1200,height=850,menubar=no,toolbar=no,location=no,status=no'
               );
             }}
-            title="Abre a bancada geométrica de vácuo em janela independente para o monitor 2"
           >
             🚀 Telemetria 2ª Tela
           </button>
@@ -1601,7 +1608,7 @@ export default function Gerador() {
 
       <h1 style={styles.title}>GERADOR TÁTICO 5x20</h1>
 
-      {/* BARRA DE AUTO-ORGANIZAÇÃO POR FALHAS */}
+      {/* Auto-Organização */}
       <div style={styles.barraAutoOrganizacao}>
         <span style={{ fontSize: 11, fontWeight: 900, color: '#475569', display: 'flex', alignItems: 'center', gap: 4 }}>
           🎯 Auto-Organizar Bancada:
@@ -1611,7 +1618,6 @@ export default function Gerador() {
           type="button" 
           onClick={agruparPorSimilaridadeDeFalhas} 
           style={{ ...styles.btnFiltroAuto, background: '#e0f2fe', color: '#0369a1', borderColor: '#7dd3fc' }}
-          title="Agrupa lado a lado as cartelas que têm as mesmas faixas vazias"
         >
           🧬 Agrupar Falhas Parecidas
         </button>
@@ -1620,7 +1626,6 @@ export default function Gerador() {
           type="button" 
           onClick={() => ordenarCartelasPor('topo')} 
           style={styles.btnFiltroAuto}
-          title="Coloca primeiro as cartelas cujas faixas vazias estão na parte de baixo (01-50 cheias)"
         >
           ⬆ Vazias Embaixo (Foco Topo)
         </button>
@@ -1629,7 +1634,6 @@ export default function Gerador() {
           type="button" 
           onClick={() => ordenarCartelasPor('base')} 
           style={styles.btnFiltroAuto}
-          title="Coloca primeiro as cartelas cujas faixas vazias estão na parte de cima (51-00 cheias)"
         >
           ⬇ Vazias em Cima (Foco Base)
         </button>
@@ -1638,7 +1642,6 @@ export default function Gerador() {
           type="button" 
           onClick={() => ordenarCartelasPor('qtdVazias')} 
           style={styles.btnFiltroAuto}
-          title="Coloca primeiro as cartelas que possuem o maior número de faixas vazias"
         >
           🕳 Mais Vazias Primeiro
         </button>
@@ -1647,20 +1650,18 @@ export default function Gerador() {
           type="button" 
           onClick={() => ordenarCartelasPor('numero')} 
           style={{ ...styles.btnFiltroAuto, background: '#f8fafc' }}
-          title="Restaura a ordem numérica original (#1, #2, #3...)"
         >
           🔢 Ordem Original (#1, #2...)
         </button>
       </div>
 
-      {/* Cartelas Fixas da Bancada */}
+      {/* Cartelas Fixas */}
       <div style={{
         display: 'flex',
         flexWrap: 'wrap',
         gap: isMobile ? 14 : 12,
         maxWidth: 1300,
-        margin: '0 auto',
-        marginBottom: 30,
+        margin: '0 auto 30px auto',
         justifyContent: 'center',
         alignItems: 'flex-start'
       }}>
@@ -1745,6 +1746,7 @@ export default function Gerador() {
         </div>
       </div>
 
+      {/* MODAL DE RELATÓRIO GERAL */}
       {relatorioGeralAberto && relatorioAuditoriaGeral && (
         <div style={{
           position: 'fixed',
@@ -1915,16 +1917,6 @@ const styles = {
     cursor: 'pointer',
     boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)',
   },
-  btnDestravarTodas: {
-    background: '#fee2e2',
-    color: '#b91c1c',
-    border: '1px solid #fca5a5',
-    borderRadius: 6,
-    padding: '3px 8px',
-    fontSize: 10,
-    fontWeight: 800,
-    cursor: 'pointer'
-  },
   btnAutoTrava: {
     background: '#f1f5f9',
     color: '#334155',
@@ -2025,7 +2017,7 @@ const styles = {
   jogoSalvoGrade: { background: "#fff", borderRadius: 12, padding: 10, border: "1px solid #e2e8f0", display: 'flex', flexDirection: 'column' as const, alignItems: 'center' },
   badgeNumero: { background: "#f1f5f9", fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 10, marginBottom: 5 },
   btnAcao: { flex: 1, padding: '5px', fontSize: 10, fontWeight: 700, border: 'none', borderRadius: 4, cursor: 'pointer', background: '#f1f5f9' },
-  gabaritoContainer: { position: 'fixed' as const, zIndex: 9999, background: 'transparent', borderRadius: 12, padding: '8px 8px', display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: 6, boxShadow: '0 8px 24px rgba(0,0,0,0.2)', pointerEvents: 'none' as const,maxWidth: 240,width: 'auto' },
+  gabaritoContainer: { position: 'fixed' as const, zIndex: 9999, background: 'transparent', borderRadius: 12, padding: '8px 8px', display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: 6, boxShadow: '0 8px 24px rgba(0,0,0,0.2)', pointerEvents: 'none' as const, maxWidth: 240, width: 'auto' },
   alcaGabarito: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', cursor: 'grab', background: '#ffffff', padding: '4px 8px', borderRadius: 6, border: '1px solid #cbd5e1', userSelect: 'none' as const, pointerEvents: 'auto' as const, boxShadow: '0 2px 5px rgba(0,0,0,0.1)' },
   badgeContadorGabarito: { fontSize: 11, fontWeight: 900, background: '#f1f5f9', padding: '1px 6px', borderRadius: 8, color: '#334155' },
   btnAcaoMini: { background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 4, width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 900, cursor: 'pointer', padding: 0, color: '#475569' },
