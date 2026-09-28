@@ -721,6 +721,16 @@ export default function Gerador() {
     setGabaritos((prev) => [...prev, novo]);
   };
 
+  const limparTodosGabaritos = () => {
+    if (gabaritos.length === 0) return;
+    if (window.confirm(`Tem certeza que deseja apagar todos os ${gabaritos.length} gabaritos?`)) {
+      setGabaritos([]);
+      localStorage.removeItem(STORAGE_GABARITOS_KEY);
+      setGabaritoAtivoParaComparacaoId(null);
+      setGabExpandidoId(null);
+    }
+  };
+
   const alternarNumeroGabarito = (idGabarito: number, linhaIdx: number, numIdx: number) => {
     setGabaritos((anteriores) =>
       anteriores.map((gab) => {
@@ -1523,6 +1533,29 @@ export default function Gerador() {
           >
             📋 + Cartela Gabarito {gabaritos.length > 0 && `(${gabaritos.length})`}
           </button>
+          {gabaritos.length > 0 && (
+            <button
+              type="button"
+              onClick={limparTodosGabaritos}
+              style={{
+                background: '#fee2e2',
+                color: '#b91c1c',
+                border: '1px solid #fca5a5',
+                borderRadius: 8,
+                padding: '10px 14px',
+                fontWeight: 800,
+                fontSize: 13,
+                cursor: 'pointer',
+                boxShadow: '0 2px 5px rgba(185, 28, 28, 0.1)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6
+              }}
+              title="Apagar todos os gabaritos da tela para reiniciar a bancada"
+            >
+              🗑️ Limpar Gabaritos ({gabaritos.length})
+            </button>
+          )}
             <button
               type="button"
               onClick={() => setRelatorioGeralAberto(true)}
