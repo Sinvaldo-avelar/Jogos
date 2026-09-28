@@ -1,686 +1,2119 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from "react";
 
-export default function Home() {
-  const [jogosInput, setJogosInput] = useState(""); 
-  const [jogosProcessados, setJogosProcessados] = useState([]);
-  const [resultadoInput, setResultadoInput] = useState("");
-  const [custoPorJogo, setCustoPorJogo] = useState(3.00); 
-  const [premio14, setPremio14] = useState(1500.00);
-  const [premio15, setPremio15] = useState(500000.00);
-  const [mounted, setMounted] = useState(false);
+const COLUNAS_QTD = 5;
+const LINHAS_QTD = 20;
+const NUMS = Array.from({ length: COLUNAS_QTD }, (_, i) => i + 1);
 
-  // NOVO: Estado para o Volante Interativo
-  const [volanteSelecionados, setVolanteSelecionados] = useState([]);
+const STORAGE_CARTELAS_FIXAS_KEY = "gerador_cartelas_fixas_5x20";
+const STORAGE_CARTELAS_SALVAS_KEY = "gerador_cartelas_5x20_salvas";
+const STORAGE_GABARITOS_KEY = "gerador_gabaritos_5x20_transparentes";
+const STORAGE_TRAVA_GERAL_KEY = "gerador_trava_geral_5x20";
 
-  useEffect(() => {
-    const salvos = localStorage.getItem('estrategia_jogos');
-    const resultadoSalvo = localStorage.getItem('estrategia_resultado');
-    const custoSalvo = localStorage.getItem('estrategia_custo');
-    if (salvos) setJogosProcessados(JSON.parse(salvos));
-    if (resultadoSalvo) setResultadoInput(resultadoSalvo);
-    if (custoSalvo) setCustoPorJogo(parseFloat(custoSalvo));
-    setMounted(true);
-  }, []);
+const CORES_GABARITO = [
+  { solido: '#dc2626', borda: '#991b1b', nome: 'Vermelho' },
+  { solido: '#16a34a', borda: '#15803d', nome: 'Verde' },
+  { solido: '#9333ea', borda: '#7e22ce', nome: 'Roxo' },
+  { solido: '#ea580c', borda: '#c2410c', nome: 'Laranja' },
+];
 
-  useEffect(() => {
-    if (mounted) {
-      localStorage.setItem('estrategia_jogos', JSON.stringify(jogosProcessados));
-      localStorage.setItem('estrategia_resultado', resultadoInput);
-      localStorage.setItem('estrategia_custo', custoPorJogo.toString());
-    }
-  }, [jogosProcessados, resultadoInput, custoPorJogo, mounted]);
-
-  // FUNÇÃO PARA CLICAR NO NÚMERO DO VOLANTE
-  const toggleNumeroVolante = (n) => {
-    if (volanteSelecionados.includes(n)) {
-      setVolanteSelecionados(volanteSelecionados.filter(num => num !== n));
-    } else if (volanteSelecionados.length < 15) {
-      setVolanteSelecionados([...volanteSelecionados, n].sort((a, b) => a - b));
-    }
-  };
-
-  const salvarJogoVolante = () => {
-    if (volanteSelecionados.length === 15) {
-      setJogosProcessados([volanteSelecionados, ...jogosProcessados]);
-      setVolanteSelecionados([]); // Limpa o volante para o próximo
-    }
-  };
-
-  const importarJogos = () => {
-    const linhas = jogosInput.trim().split('\n');
-    const novosJogos = linhas.map(linha => {
-      return linha.trim().split(/\s+/).map(Number).filter(n => n > 0 && n <= 25);
-    }).filter(j => j.length > 0);
-    setJogosProcessados([...jogosProcessados, ...novosJogos]);
-    setJogosInput(""); 
-  };
-
-  const deletarUmJogo = (indexParaRemover) => {
-    setJogosProcessados(jogosProcessados.filter((_, idx) => idx !== indexParaRemover));
-  };
-
-  const limparSistema = () => {
-    if(confirm("Deseja apagar TUDO?")) {
-      setJogosInput("");
-      setJogosProcessados([]);
-      setResultadoInput("");
-      setVolanteSelecionados([]);
-      localStorage.clear();
-    }
-  };
-
-  const dezenasSorteadas = useMemo(() => {
-    return resultadoInput.trim().split(/\s+/).map(Number).filter(n => n > 0 && n <= 25);
-  }, [resultadoInput]);
-
-  const analise = useMemo(() => {
-    const investimentoTotal = jogosProcessados.length * custoPorJogo;
-    let totalPremios = 0;
-    let cont14 = 0;
-    let cont15 = 0;
-
-    const lista = jogosProcessados.map((jogo, id) => {
-      const acertos = jogo.filter(n => dezenasSorteadas.includes(n)).length;
-      if (acertos === 11) totalPremios += 7;
-      if (acertos === 12) totalPremios += 14;
-      if (acertos === 13) totalPremios += 35;
-      if (acertos === 14) { totalPremios += premio14; cont14++; }
-      if (acertos === 15) { totalPremios += premio15; cont15++; }
-      return { jogo, acertos, idOriginal: id };
-    });
-
-    const saldoFinal = totalPremios - investimentoTotal;
-    return { lista, totalPremios, investimentoTotal, saldoFinal, cont14, cont15 };
-  }, [jogosProcessados, dezenasSorteadas, custoPorJogo, premio14, premio15]);
-
-  if (!mounted) return null;
-
-  return (
-    <div style={styles.container}>
-      <header style={styles.header}>
-        <div>
-          <h1 style={{ margin: 0, color: '#0f172a', fontSize: '24px' }}>ESTRATÉGIA MATEMÁTICA PRO</h1>
-          <p style={{ margin: 0, color: '#64748b', fontSize: '11px', fontWeight: 'bold' }}>GESTOR DE VOLANTES ILIMITADOS</p>
-        </div>
-        <button style={styles.btnDeleteAll} onClick={limparSistema}>LIMPAR TUDO</button>
-      </header>
-
-      <div style={styles.mainLayout}>
-        <div style={styles.sidebar}>
-          
-          {/* NOVO: VOLANTE INTERATIVO */}
-          <section style={styles.card}>
-            <h3 style={styles.cardTitle}>1. VOLANTE VIRTUAL ({volanteSelecionados.length}/15)</h3>
-            <div style={styles.volanteGrid}>
-              {Array.from({ length: 25 }, (_, i) => i + 1).map(n => (
-                <button 
-                  key={n} 
-                  onClick={() => toggleNumeroVolante(n)}
-                  style={{
-                    ...styles.volanteDezena,
-                    backgroundColor: volanteSelecionados.includes(n) ? '#3b82f6' : '#f1f5f9',
-                    color: volanteSelecionados.includes(n) ? 'white' : '#64748b',
-                    borderColor: volanteSelecionados.includes(n) ? '#2563eb' : '#e2e8f0'
-                  }}
-                >
-                  {String(n).padStart(2, '0')}
-                </button>
-              ))}
-            </div>
-            <button 
-              disabled={volanteSelecionados.length !== 15}
-              onClick={salvarJogoVolante}
-              style={{
-                ...styles.btnSalvarVolante,
-                opacity: volanteSelecionados.length === 15 ? 1 : 0.5,
-                cursor: volanteSelecionados.length === 15 ? 'pointer' : 'not-allowed'
-              }}
-            >
-              {volanteSelecionados.length === 15 ? "SALVAR JOGO NO PAINEL" : `FALTAM ${15 - volanteSelecionados.length} NÚMEROS`}
-            </button>
-          </section>
-
-          <section style={styles.card}>
-            <h3 style={styles.cardTitle}>2. AJUSTE DE VALORES</h3>
-            <div style={styles.inputRow}>
-              <span>Custo Jogo:</span>
-              <input type="number" step="0.01" style={styles.inputSmall} value={custoPorJogo} onChange={(e) => setCustoPorJogo(parseFloat(e.target.value) || 0)}/>
-            </div>
-            <div style={styles.inputRow}>
-              <span>Prêmio 14 pts:</span>
-              <input type="number" style={styles.inputSmall} value={premio14} onChange={(e) => setPremio14(parseFloat(e.target.value) || 0)}/>
-            </div>
-            <div style={styles.inputRow}>
-              <span>Prêmio 15 pts:</span>
-              <input type="number" style={styles.inputSmall} value={premio15} onChange={(e) => setPremio15(parseFloat(e.target.value) || 0)}/>
-            </div>
-          </section>
-
-          <section style={styles.card}>
-            <h3 style={styles.cardTitle}>3. ENTRADA (ILIMITADA)</h3>
-            <textarea 
-              style={styles.textarea}
-              placeholder="Ou cole seus jogos aqui..."
-              value={jogosInput}
-              onChange={(e) => setJogosInput(e.target.value)}
-            />
-            <button style={styles.btnImportar} onClick={importarJogos}>IMPORTAR E SOMAR</button>
-          </section>
-
-          <section style={styles.card}>
-            <h3 style={styles.cardTitle}>4. CONFERIDOR</h3>
-            <input style={styles.inputResultado} placeholder="01 02 03..." value={resultadoInput} onChange={(e) => setResultadoInput(e.target.value)}/>
-          </section>
-
-          <section style={{ ...styles.card, borderTop: '5px solid #3b82f6', backgroundColor: '#eff6ff' }}>
-            <h3 style={{ ...styles.cardTitle, color: '#1e40af' }}>5. RESUMO DA OPERAÇÃO</h3>
-            <div style={styles.financeiroRow}><span>Investimento:</span><b>R$ {analise.investimentoTotal.toLocaleString('pt-br', {minimumFractionDigits: 2})}</b></div>
-            <div style={styles.financeiroRow}><span>Total Prêmios:</span><b style={{color: '#15803d'}}>R$ {analise.totalPremios.toLocaleString('pt-br', {minimumFractionDigits: 2})}</b></div>
-            
-            {analise.cont14 > 0 && <div style={styles.tagAviso}>🎯 {analise.cont14}x prêmio de 14 pts!</div>}
-            {analise.cont15 > 0 && <div style={styles.tagAvisoOuro}>🏆 {analise.cont15}x prêmio de 15 pts!</div>}
-
-            <div style={{...styles.saldoBox, backgroundColor: analise.saldoFinal >= 0 ? '#dcfce7' : '#fee2e2'}}>
-              <span style={{fontSize: '10px'}}>SALDO LÍQUIDO:</span>
-              <div style={{fontSize: '20px', fontWeight: '900', color: analise.saldoFinal >= 0 ? '#15803d' : '#b91c1c'}}>
-                R$ {analise.saldoFinal.toLocaleString('pt-br', {minimumFractionDigits: 2})}
-              </div>
-            </div>
-          </section>
-        </div>
-
-        <div style={{ ...styles.card, flex: 1 }}>
-          <h3 style={styles.cardTitle}>PAINEL DE ANÁLISE ({jogosProcessados.length} JOGOS)</h3>
-          <div style={styles.grid}>
-            {analise.lista.map((res, idx) => {
-              const isWin = res.acertos >= 11;
-              const isEpic = res.acertos >= 14;
-              return (
-                <div key={idx} style={{ 
-                  ...styles.jogoBox, 
-                  border: isEpic ? '2px solid #f59e0b' : (isWin ? '1px solid #22c55e' : '1px solid #f1f5f9'), 
-                  backgroundColor: isEpic ? '#fffbeb' : (isWin ? '#f0fdf4' : '#fff') 
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', alignItems: 'center' }}>
-                    <small style={{ color: '#cbd5e1', fontSize: '10px' }}>#{idx + 1}</small>
-                    <div style={{display: 'flex', gap: '5px', alignItems: 'center'}}>
-                        <b style={{ color: isEpic ? '#d97706' : (isWin ? '#16a34a' : '#94a3b8'), fontSize: '11px' }}>{res.acertos} pts</b>
-                        <button onClick={() => deletarUmJogo(idx)} style={styles.btnDeletarUm}>✕</button>
-                    </div>
-                  </div>
-                  <div style={styles.dezenasRow}>
-                    {res.jogo.map(n => (
-                      <span key={n} style={{ 
-                        ...styles.dezena, 
-                        backgroundColor: dezenasSorteadas.includes(n) ? (isEpic ? '#f59e0b' : (isWin ? '#22c55e' : '#64748b')) : '#f8fafc',
-                        color: dezenasSorteadas.includes(n) ? 'white' : '#94a3b8'
-                      }}>{String(n).padStart(2, '0')}</span>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+interface Gabarito5x20 {
+  id: number;
+  x: number;
+  y: number;
+  valores: number[][];
+  corIdx: number;
 }
 
-const styles = {
-  container: { backgroundColor: '#f8fafc', minHeight: '100vh', padding: '25px', fontFamily: 'sans-serif' },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', borderBottom: '1px solid #e2e8f0', paddingBottom: '15px' },
-  btnDeleteAll: { backgroundColor: '#fee2e2', color: '#b91c1c', border: '1px solid #fecaca', padding: '8px 15px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '11px' },
-  mainLayout: { display: 'flex', gap: '25px', alignItems: 'flex-start' },
-  sidebar: { width: '320px', display: 'flex', flexDirection: 'column', gap: '20px' },
-  card: { backgroundColor: 'white', padding: '18px', borderRadius: '15px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' },
-  cardTitle: { fontSize: '9px', color: '#94a3b8', fontWeight: '800', marginBottom: '12px', borderBottom: '1px solid #f1f5f9', paddingBottom: '6px', textTransform: 'uppercase' },
-  volanteGrid: { display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '5px', marginBottom: '15px' },
-  volanteDezena: { height: '35px', borderRadius: '6px', border: '1px solid', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer', transition: '0.2s' },
-  btnSalvarVolante: { width: '100%', padding: '12px', background: '#22c55e', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '12px' },
-  textarea: { width: '100%', height: '80px', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '11px', boxSizing: 'border-box', marginBottom: '10px' },
-  btnImportar: { width: '100%', backgroundColor: '#0f172a', color: 'white', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' },
-  inputResultado: { width: '100%', padding: '12px', fontSize: '20px', textAlign: 'center', borderRadius: '8px', border: '2px solid #e2e8f0', color: '#3b82f6', outline: 'none', boxSizing: 'border-box' },
-  inputRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' },
-  inputSmall: { width: '100px', padding: '5px', borderRadius: '5px', border: '1px solid #e2e8f0', textAlign: 'right', fontWeight: 'bold', fontSize: '12px' },
-  financeiroRow: { display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '5px' },
-  tagAviso: { backgroundColor: '#fef3c7', color: '#92400e', padding: '5px', borderRadius: '5px', fontSize: '11px', fontWeight: 'bold', marginTop: '10px', textAlign: 'center' },
-  tagAvisoOuro: { backgroundColor: '#fde68a', color: '#92400e', padding: '8px', borderRadius: '5px', fontSize: '12px', fontWeight: '900', marginTop: '5px', textAlign: 'center', border: '1px solid #f59e0b' },
-  saldoBox: { marginTop: '15px', padding: '10px', borderRadius: '10px', textAlign: 'center' },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '10px', maxHeight: '80vh', overflowY: 'auto' },
-  jogoBox: { padding: '10px', borderRadius: '10px' },
-  dezenasRow: { display: 'flex', flexWrap: 'wrap', gap: '3px' },
-  dezena: { width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '5px', fontSize: '9px', fontWeight: 'bold' },
-  btnDeletarUm: { backgroundColor: 'transparent', color: '#ef4444', border: 'none', cursor: 'pointer', fontSize: '12px' }
-};
-
-
-
-
-'use client';
-
-import { useState, useEffect, useMemo } from 'react';
-
-export default function Home() {
-  const [jogosInput, setJogosInput] = useState(""); 
-  const [jogosProcessados, setJogosProcessados] = useState([]);
-  const [resultadoInput, setResultadoInput] = useState("");
-  const [custoPorJogo, setCustoPorJogo] = useState(3.00); 
-  const [premio14, setPremio14] = useState(1500.00);
-  const [premio15, setPremio15] = useState(500000.00);
-  const [mounted, setMounted] = useState(false);
-  const [volanteSelecionados, setVolanteSelecionados] = useState([]);
-
-  useEffect(() => {
-    const salvos = localStorage.getItem('estrategia_jogos');
-    const resultadoSalvo = localStorage.getItem('estrategia_resultado');
-    if (salvos) setJogosProcessados(JSON.parse(salvos));
-    if (resultadoSalvo) setResultadoInput(resultadoSalvo);
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (mounted) {
-      localStorage.setItem('estrategia_jogos', JSON.stringify(jogosProcessados));
-      localStorage.setItem('estrategia_resultado', resultadoInput);
-    }
-  }, [jogosProcessados, resultadoInput, mounted]);
-
-  const toggleNumeroVolante = (n) => {
-    if (volanteSelecionados.includes(n)) {
-      setVolanteSelecionados(volanteSelecionados.filter(num => num !== n));
-    } else if (volanteSelecionados.length < 15) {
-      setVolanteSelecionados([...volanteSelecionados, n].sort((a, b) => a - b));
-    }
-  };
-
-  // --- A MÁGICA DA SUA IDEIA ESTÁ AQUI ---
-  const salvarJogoEInverter = () => {
-    if (volanteSelecionados.length === 15) {
-      // 1. Salva o jogo atual
-      setJogosProcessados([volanteSelecionados, ...jogosProcessados]);
-      
-      // 2. Descobre quais dezenas sobraram (as 10 que não foram marcadas)
-      const todas = Array.from({ length: 25 }, (_, i) => i + 1);
-      const sobraram = todas.filter(n => !volanteSelecionados.includes(n));
-      
-      // 3. Deixa as 10 que sobraram marcadas para o próximo jogo
-      setVolanteSelecionados(sobraram);
-      alert("Jogo salvo! As 10 dezenas que sobraram foram marcadas. Escolha mais 5!");
-    }
-  };
-
-  const importarJogos = () => {
-    const linhas = jogosInput.trim().split('\n');
-    const novosJogos = linhas.map(linha => {
-      return linha.trim().split(/\s+/).map(Number).filter(n => n > 0 && n <= 25);
-    }).filter(j => j.length > 0);
-    setJogosProcessados([...jogosProcessados, ...novosJogos]);
-    setJogosInput(""); 
-  };
-
-  const deletarUmJogo = (indexParaRemover) => {
-    setJogosProcessados(jogosProcessados.filter((_, idx) => idx !== indexParaRemover));
-  };
-
-  const limparSistema = () => {
-    if(confirm("Deseja apagar TUDO?")) {
-      setJogosProcessados([]);
-      setVolanteSelecionados([]);
-      localStorage.clear();
-    }
-  };
-
-  const dezenasSorteadas = useMemo(() => {
-    return resultadoInput.trim().split(/\s+/).map(Number).filter(n => n > 0 && n <= 25);
-  }, [resultadoInput]);
-
-  const analise = useMemo(() => {
-    const investimentoTotal = jogosProcessados.length * custoPorJogo;
-    let totalPremios = 0;
-    let cont14 = 0; let cont15 = 0;
-    const lista = jogosProcessados.map((jogo, id) => {
-      const acertos = jogo.filter(n => dezenasSorteadas.includes(n)).length;
-      if (acertos === 11) totalPremios += 7;
-      if (acertos === 12) totalPremios += 14;
-      if (acertos === 13) totalPremios += 35;
-      if (acertos === 14) { totalPremios += premio14; cont14++; }
-      if (acertos === 15) { totalPremios += premio15; cont15++; }
-      return { jogo, acertos, idOriginal: id };
-    });
-    return { lista, totalPremios, investimentoTotal, saldoFinal: totalPremios - investimentoTotal, cont14, cont15 };
-  }, [jogosProcessados, dezenasSorteadas, custoPorJogo, premio14, premio15]);
-
-  if (!mounted) return null;
-
-  return (
-    <div style={styles.container}>
-      <header style={styles.header}>
-        <div>
-          <h1 style={{ margin: 0, color: '#0f172a', fontSize: '24px' }}>ESTRATÉGIA DAS SOBRAS</h1>
-          <p style={{ margin: 0, color: '#64748b', fontSize: '11px', fontWeight: 'bold' }}>SISTEMA DE ROTAÇÃO DE DEZENAS</p>
-        </div>
-        <button style={styles.btnDeleteAll} onClick={limparSistema}>LIMPAR TUDO</button>
-      </header>
-
-      <div style={styles.mainLayout}>
-        <div style={styles.sidebar}>
-          
-          <section style={styles.card}>
-            <h3 style={styles.cardTitle}>VOLANTE INTERATIVO ({volanteSelecionados.length}/15)</h3>
-            <div style={styles.volanteGrid}>
-              {Array.from({ length: 25 }, (_, i) => i + 1).map(n => (
-                <button 
-                  key={n} 
-                  onClick={() => toggleNumeroVolante(n)}
-                  style={{
-                    ...styles.volanteDezena,
-                    backgroundColor: volanteSelecionados.includes(n) ? '#3b82f6' : '#f1f5f9',
-                    color: volanteSelecionados.includes(n) ? 'white' : '#64748b',
-                    borderColor: volanteSelecionados.includes(n) ? '#2563eb' : '#e2e8f0'
-                  }}
-                >
-                  {String(n).padStart(2, '0')}
-                </button>
-              ))}
-            </div>
-            <button 
-              disabled={volanteSelecionados.length !== 15}
-              onClick={salvarJogoEInverter}
-              style={{
-                ...styles.btnSalvarVolante,
-                background: volanteSelecionados.length === 15 ? '#22c55e' : '#94a3b8',
-                cursor: volanteSelecionados.length === 15 ? 'pointer' : 'not-allowed'
-              }}
-            >
-              {volanteSelecionados.length === 15 ? "SALVAR E MANTER SOBRAS" : `MARQUE MAIS ${15 - volanteSelecionados.length}`}
-            </button>
-            <p style={{fontSize: '10px', marginTop: '10px', color: '#64748b'}}>Ao salvar, as 10 dezenas não usadas ficarão marcadas para o próximo jogo!</p>
-          </section>
-
-          <section style={styles.card}>
-            <h3 style={styles.cardTitle}>CONFERIDOR</h3>
-            <input style={styles.inputResultado} placeholder="Resultado" value={resultadoInput} onChange={(e) => setResultadoInput(e.target.value)}/>
-          </section>
-
-          <section style={{ ...styles.card, backgroundColor: '#f0fdf4' }}>
-            <h3 style={styles.cardTitle}>RESUMO</h3>
-            <div style={styles.financeiroRow}><span>Investimento:</span><b>R$ {analise.investimentoTotal.toFixed(2)}</b></div>
-            <div style={styles.financeiroRow}><span>Prêmios:</span><b style={{color: '#15803d'}}>R$ {analise.totalPremios.toFixed(2)}</b></div>
-          </section>
-        </div>
-
-        <div style={{ ...styles.card, flex: 1 }}>
-          <h3 style={styles.cardTitle}>MEUS JOGOS ({jogosProcessados.length})</h3>
-          <div style={styles.grid}>
-            {analise.lista.map((res, idx) => (
-              <div key={idx} style={styles.jogoBox}>
-                <div style={styles.boxHeader}>
-                  <span>#{jogosProcessados.length - idx}</span>
-                  <b>{res.acertos} pts</b>
-                  <button onClick={() => deletarUmJogo(idx)} style={styles.btnDeletarUm}>✕</button>
-                </div>
-                <div style={styles.dezenasRow}>
-                  {res.jogo.map(n => (
-                    <span key={n} style={{ 
-                      ...styles.dezena, 
-                      backgroundColor: dezenasSorteadas.includes(n) ? '#22c55e' : '#f8fafc',
-                      color: dezenasSorteadas.includes(n) ? 'white' : '#94a3b8'
-                    }}>{String(n).padStart(2, '0')}</span>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+interface CartelaFixa5x20Item {
+  id: number;
+  numeroCartela: number;
+  selecionadas: number[][];
+  msg: string;
+  bloqueada?: boolean;
 }
 
-const styles = {
-  container: { backgroundColor: '#f8fafc', minHeight: '100vh', padding: '20px', fontFamily: 'sans-serif' },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' },
-  btnDeleteAll: { backgroundColor: '#fee2e2', color: '#b91c1c', border: 'none', padding: '8px 15px', borderRadius: '8px', cursor: 'pointer' },
-  mainLayout: { display: 'flex', gap: '20px' },
-  sidebar: { width: '300px', display: 'flex', flexDirection: 'column', gap: '15px' },
-  card: { backgroundColor: 'white', padding: '15px', borderRadius: '12px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' },
-  cardTitle: { fontSize: '10px', color: '#94a3b8', fontWeight: 'bold', marginBottom: '10px', textTransform: 'uppercase' },
-  volanteGrid: { display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '5px', marginBottom: '15px' },
-  volanteDezena: { height: '35px', borderRadius: '6px', border: '1px solid', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' },
-  btnSalvarVolante: { width: '100%', padding: '12px', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold' },
-  inputResultado: { width: '100%', padding: '10px', textAlign: 'center', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '18px' },
-  financeiroRow: { display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '5px' },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '10px', maxHeight: '70vh', overflowY: 'auto' },
-  jogoBox: { padding: '10px', borderRadius: '10px', border: '1px solid #e2e8f0', background: 'white' },
-  boxHeader: { display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '5px' },
-  dezenasRow: { display: 'flex', flexWrap: 'wrap', gap: '2px' },
-  dezena: { width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '4px', fontSize: '9px', fontWeight: 'bold' },
-  btnDeletarUm: { background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }
-};
+function CartaoMontarJogo({ 
+  cartela, 
+  indice, 
+  totalCartelas,
+  alternarNumero, 
+  salvarCartela, 
+  removerCartela, 
+  alternarTravaIndividual,
+  trocarDiretoPosicao,
+  cartelaSelecionadaParaTroca,
+  iniciarTroca,
+  travaGeralAtiva,
+  celulaCartelaStyle,
+  gabaritos,
+  CORES_GABARITO,
+  gabaritoAtivoParaComparacaoId,
+  setGabaritoAtivoParaComparacaoId
+}: any) {
+  const estaTravada = travaGeralAtiva || cartela.bloqueada;
+  const estaAguardandoTroca = cartelaSelecionadaParaTroca === indice;
+  const [menuGabaritosAberto, setMenuGabaritosAberto] = useState(false);
 
+  const totalEscolhidos = cartela.selecionadas.reduce(
+    (acc: number, linha: number[]) => acc + linha.filter(v => v === 1 || v === 2).length,
+    0
+  );
 
-'use client';
-
-import { useState, useEffect, useMemo } from 'react';
-
-export default function Home() {
-  const [jogosInput, setJogosInput] = useState(""); 
-  const [jogosProcessados, setJogosProcessados] = useState([]);
-  const [resultadoInput, setResultadoInput] = useState("");
-  const [custoPorJogo, setCustoPorJogo] = useState(3.00); 
-  const [premio14, setPremio14] = useState(1500.00);
-  const [premio15, setPremio15] = useState(500000.00);
-  const [mounted, setMounted] = useState(false);
-  const [volanteSelecionados, setVolanteSelecionados] = useState([]);
-
-  useEffect(() => {
-    const salvos = localStorage.getItem('estrategia_jogos');
-    const resultadoSalvo = localStorage.getItem('estrategia_resultado');
-    if (salvos) setJogosProcessados(JSON.parse(salvos));
-    if (resultadoSalvo) setResultadoInput(resultadoSalvo);
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (mounted) {
-      localStorage.setItem('estrategia_jogos', JSON.stringify(jogosProcessados));
-      localStorage.setItem('estrategia_resultado', resultadoInput);
+  const gabaritosComPontos = (gabaritos || []).map((gab: any, idx: number) => {
+    const cor = CORES_GABARITO[gab.corIdx];
+    let acertos = 0;
+    for (let l = 0; l < LINHAS_QTD; l++) {
+      for (let c = 0; c < COLUNAS_QTD; c++) {
+        const naCartela = cartela.selecionadas[l][c] === 1 || cartela.selecionadas[l][c] === 2;
+        const noGabarito = gab.valores[l][c] === 1;
+        if (naCartela && noGabarito) acertos++;
+      }
     }
-  }, [jogosProcessados, resultadoInput, mounted]);
-
-  // Estatísticas de Frequência das Dezenas
-  const freqDezenas = useMemo(() => {
-    const contagem = Array(26).fill(0);
-    jogosProcessados.forEach(jogo => {
-      jogo.forEach(num => contagem[num]++);
-    });
-    return contagem;
-  }, [jogosProcessados]);
-
-  const toggleNumeroVolante = (n) => {
-    if (volanteSelecionados.includes(n)) {
-      setVolanteSelecionados(volanteSelecionados.filter(num => num !== n));
-    } else if (volanteSelecionados.length < 15) {
-      setVolanteSelecionados([...volanteSelecionados, n].sort((a, b) => a - b));
-    }
-  };
-
-  const salvarJogoEInverter = () => {
-    if (volanteSelecionados.length === 15) {
-      setJogosProcessados([volanteSelecionados, ...jogosProcessados]);
-      const todas = Array.from({ length: 25 }, (_, i) => i + 1);
-      const sobraram = todas.filter(n => !volanteSelecionados.includes(n));
-      setVolanteSelecionados(sobraram);
-    }
-  };
-
-  const deletarUmJogo = (indexParaRemover) => {
-    setJogosProcessados(jogosProcessados.filter((_, idx) => idx !== indexParaRemover));
-  };
-
-  const limparSistema = () => {
-    if(confirm("Deseja apagar TUDO?")) {
-      setJogosProcessados([]);
-      setVolanteSelecionados([]);
-      localStorage.clear();
-    }
-  };
-
-  const dezenasSorteadas = useMemo(() => {
-    return resultadoInput.trim().split(/\s+/).map(Number).filter(n => n > 0 && n <= 25);
-  }, [resultadoInput]);
-
-  const analise = useMemo(() => {
-    const investimentoTotal = jogosProcessados.length * custoPorJogo;
-    let totalPremios = 0;
-    let cont14 = 0; let cont15 = 0;
-    const lista = jogosProcessados.map((jogo, id) => {
-      const acertos = jogo.filter(n => dezenasSorteadas.includes(n)).length;
-      if (acertos === 11) totalPremios += 7;
-      if (acertos === 12) totalPremios += 14;
-      if (acertos === 13) totalPremios += 35;
-      if (acertos === 14) { totalPremios += premio14; cont14++; }
-      if (acertos === 15) { totalPremios += premio15; cont15++; }
-      return { jogo, acertos, idOriginal: id };
-    });
-    return { lista, totalPremios, investimentoTotal, saldoFinal: totalPremios - investimentoTotal, cont14, cont15 };
-  }, [jogosProcessados, dezenasSorteadas, custoPorJogo, premio14, premio15]);
-
-  if (!mounted) return null;
+    return {
+      id: gab.id,
+      nome: `G${idx + 1}`,
+      cor,
+      acertos,
+      ehPremiado: acertos >= 15 || acertos === 0,
+      valores: gab.valores
+    };
+  });
+  const premiados = gabaritosComPontos.filter((g: any) => g.ehPremiado);
+  const melhorGabarito = [...gabaritosComPontos].sort((a, b) => b.acertos - a.acertos)[0];
 
   return (
-    <div style={styles.container}>
-      <header style={styles.header}>
-        <div>
-          <h1 style={{ margin: 0, color: '#0f172a', fontSize: '24px' }}>ESTRATÉGIA DE INVESTIMENTO</h1>
-          <p style={{ margin: 0, color: '#64748b', fontSize: '11px', fontWeight: 'bold' }}>CONTROLE DE FREQUÊNCIA E SOBRAS</p>
-        </div>
-        <button style={styles.btnDeleteAll} onClick={limparSistema}>LIMPAR TUDO</button>
-      </header>
-
-      <div style={styles.mainLayout}>
-        <div style={styles.sidebar}>
+    <div 
+      style={{
+        ...styles.cardPrincipal,
+        border: estaAguardandoTroca 
+          ? '2px solid #2563eb' 
+          : estaTravada 
+            ? '1px solid #cbd5e1' 
+            : '1px solid #e2e8f0',
+        background: estaAguardandoTroca 
+          ? '#eff6ff'
+          : '#ffffff',
+        boxShadow: estaAguardandoTroca 
+          ? '0 0 15px rgba(37, 99, 235, 0.35)' 
+          : '0 4px 6px -1px rgba(0,0,0,0.08)',
+        transform: estaAguardandoTroca ? 'scale(1.01)' : 'none',
+        transition: 'all 0.2s ease'
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <button
+            type="button"
+            disabled={indice === 0}
+            onClick={() => trocarDiretoPosicao(indice, indice - 1)}
+            style={{ ...styles.btnMover, opacity: indice === 0 ? 0.3 : 1 }}
+            title="Trocar com a cartela anterior"
+          >
+            ◀
+          </button>
           
-          <section style={styles.card}>
-            <h3 style={styles.cardTitle}>VOLANTE VIRTUAL ({volanteSelecionados.length}/15)</h3>
-            <div style={styles.volanteGrid}>
-              {Array.from({ length: 25 }, (_, i) => i + 1).map(n => (
-                <button 
-                  key={n} 
-                  onClick={() => toggleNumeroVolante(n)}
-                  style={{
-                    ...styles.volanteDezena,
-                    backgroundColor: volanteSelecionados.includes(n) ? '#3b82f6' : '#f1f5f9',
-                    color: volanteSelecionados.includes(n) ? 'white' : '#64748b',
-                    borderColor: volanteSelecionados.includes(n) ? '#2563eb' : '#e2e8f0'
-                  }}
-                >
-                  {String(n).padStart(2, '0')}
-                </button>
-              ))}
+          <h3 style={styles.cardTitle}>
+            CARTELA #{cartela.numeroCartela}
+          </h3>
+
+          <button
+            type="button"
+            disabled={indice === totalCartelas - 1}
+            onClick={() => trocarDiretoPosicao(indice, indice + 1)}
+            style={{ ...styles.btnMover, opacity: indice === totalCartelas - 1 ? 0.3 : 1 }}
+            title="Trocar com a próxima cartela"
+          >
+            ▶
+          </button>
+
+          <button
+            type="button"
+            onClick={() => iniciarTroca(indice)}
+            style={{
+              background: estaAguardandoTroca ? '#2563eb' : '#f1f5f9',
+              color: estaAguardandoTroca ? '#ffffff' : '#334155',
+              border: estaAguardandoTroca ? '1px solid #1d4ed8' : '1px solid #cbd5e1',
+              borderRadius: 4,
+              padding: '2px 6px',
+              fontSize: 10,
+              fontWeight: 800,
+              cursor: 'pointer'
+            }}
+            title={estaAguardandoTroca ? "Cancelar troca" : "Clique aqui e depois clique na outra cartela para trocar de posição"}
+          >
+            {estaAguardandoTroca ? 'Cancel ✕' : '⇄ Trocar'}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => alternarTravaIndividual(cartela.id)}
+            style={{
+              background: estaTravada ? '#fee2e2' : '#f1f5f9',
+              color: estaTravada ? '#dc2626' : '#475569',
+              border: 'none',
+              borderRadius: 4,
+              padding: '2px 5px',
+              fontSize: 11,
+              fontWeight: 800,
+              cursor: 'pointer'
+            }}
+            title={estaTravada ? "Cartela bloqueada contra cliques" : "Travar esta cartela"}
+          >
+            {estaTravada ? '🔒' : '🔓'}
+          </button>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => removerCartela(cartela.id)}
+          style={{ background: '#fee2e2', color: '#b91c1c', border: 'none', borderRadius: 4, padding: '2px 6px', fontSize: 10, fontWeight: 700, cursor: 'pointer' }}
+          title="Remover esta cartela"
+        >
+          ×
+        </button>
+      </div>
+
+      <div style={{ marginBottom: 8, fontWeight: 600, color: '#0f172a', fontSize: 13, textAlign: 'center' }}>
+        Escolhidos: {totalEscolhidos}
+      </div>
+
+      {gabaritosComPontos.length > 0 && (
+        <div style={{ width: '100%', marginBottom: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            background: premiados.length > 0 ? '#ecfdf5' : '#f8fafc',
+            border: premiados.length > 0 ? '1px solid #6ee7b7' : '1px solid #e2e8f0',
+            borderRadius: 6,
+            padding: '3px 6px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 800, color: premiados.length > 0 ? '#047857' : '#475569' }}>
+              <span>{premiados.length > 0 ? `🏆 Premiadas (${premiados.length})` : 'Sem 15+ pts'}</span>
+              {melhorGabarito && (
+                <span style={{ fontSize: 9, opacity: 0.85 }}>Top: <b>{melhorGabarito.nome} ({melhorGabarito.acertos}p)</b></span>
+              )}
             </div>
-            <button 
-              disabled={volanteSelecionados.length !== 15}
-              onClick={salvarJogoEInverter}
+
+            <button
+              type="button"
+              onClick={() => setMenuGabaritosAberto(prev => !prev)}
               style={{
-                ...styles.btnSalvarVolante,
-                background: volanteSelecionados.length === 15 ? '#22c55e' : '#94a3b8',
-                cursor: volanteSelecionados.length === 15 ? 'pointer' : 'not-allowed'
+                background: premiados.length > 0 ? '#fef3c7' : '#f1f5f9',
+                border: premiados.length > 0 ? '1px solid #f59e0b' : '1px solid #cbd5e1',
+                borderRadius: 4,
+                padding: '2px 6px',
+                fontSize: 9,
+                fontWeight: 800,
+                cursor: 'pointer',
+                color: premiados.length > 0 ? '#b45309' : '#475569'
               }}
             >
-              {volanteSelecionados.length === 15 ? "SALVAR E MANTER SOBRAS" : `FALTAM ${15 - volanteSelecionados.length}`}
+              {menuGabaritosAberto ? '▲ Fechar' : `🏆 ${premiados.length || gabaritosComPontos.length}`}
             </button>
-          </section>
+          </div>
 
-          {/* NOVO: MAPA DE FREQUÊNCIA DAS DEZENAS */}
-          <section style={styles.card}>
-            <h3 style={styles.cardTitle}>FREQUÊNCIA DAS DEZENAS (NOS {jogosProcessados.length} JOGOS)</h3>
-            <div style={styles.statsScroll}>
-              {Array.from({ length: 25 }, (_, i) => i + 1).map(n => {
-                const percent = jogosProcessados.length > 0 ? (freqDezenas[n] / jogosProcessados.length) * 100 : 0;
+          {menuGabaritosAberto && (
+            <div style={{
+              background: '#ffffff',
+              border: '1px solid #cbd5e1',
+              borderRadius: 6,
+              padding: 6,
+              maxHeight: 95,
+              overflowY: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 3,
+              boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'
+            }}>
+              <div style={{ fontSize: 9, fontWeight: 900, color: '#334155', borderBottom: '1px solid #f1f5f9', paddingBottom: 2 }}>
+                Clique no gabarito para iluminar na cartela:
+              </div>
+
+              {[...gabaritosComPontos].sort((a, b) => b.acertos - a.acertos).map((g: any) => {
+                const estaAtivo = gabaritoAtivoParaComparacaoId === g.id;
                 return (
-                  <div key={n} style={styles.statRow}>
-                    <span style={styles.statNum}>{String(n).padStart(2, '0')}</span>
-                    <div style={styles.barBg}>
-                      <div style={{...styles.barFill, width: `${percent}%`}}></div>
-                    </div>
-                    <span style={styles.statCount}>{freqDezenas[n]}x</span>
+                  <div
+                    key={g.id}
+                    onClick={() => setGabaritoAtivoParaComparacaoId(estaAtivo ? null : g.id)}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '2px 6px',
+                      borderRadius: 4,
+                      fontSize: 9,
+                      cursor: 'pointer',
+                      background: estaAtivo ? g.cor.solido : g.ehPremiado ? '#dcfce7' : '#f8fafc',
+                      color: estaAtivo ? '#ffffff' : g.ehPremiado ? '#15803d' : '#475569',
+                      border: estaAtivo ? `1px solid ${g.cor.borda}` : '1px solid transparent',
+                      fontWeight: g.ehPremiado ? 900 : 600
+                    }}
+                  >
+                    <span>Gabarito {g.nome}</span>
+                    <span><b>{g.acertos} pts</b> {g.ehPremiado ? '★' : ''} {estaAtivo ? ' (Ativo)' : ''}</span>
                   </div>
                 );
               })}
             </div>
-          </section>
-
-          <section style={styles.card}>
-            <h3 style={styles.cardTitle}>CONFERIDOR</h3>
-            <input style={styles.inputResultado} placeholder="Ex: 01 02 05..." value={resultadoInput} onChange={(e) => setResultadoInput(e.target.value)}/>
-          </section>
-
-          <section style={{ ...styles.card, backgroundColor: '#eff6ff' }}>
-            <h3 style={styles.cardTitle}>INVESTIMENTO VS RETORNO</h3>
-            <div style={styles.financeiroRow}><span>Total Gasto:</span><b>R$ {analise.investimentoTotal.toFixed(2)}</b></div>
-            <div style={styles.financeiroRow}><span>Total Prêmios:</span><b style={{color: '#15803d'}}>R$ {analise.totalPremios.toFixed(2)}</b></div>
-            <div style={{...styles.saldoBox, color: analise.saldoFinal >= 0 ? '#15803d' : '#b91c1c'}}>
-              <b>SALDO: R$ {analise.saldoFinal.toFixed(2)}</b>
-            </div>
-          </section>
+          )}
         </div>
+      )}
 
-        <div style={{ ...styles.card, flex: 1 }}>
-          <h3 style={styles.cardTitle}>PAINEL DE ANÁLISE ({jogosProcessados.length} JOGOS)</h3>
-          <div style={styles.grid}>
-            {analise.lista.map((res, idx) => (
-              <div key={idx} style={styles.jogoBox}>
-                <div style={styles.boxHeader}>
-                  <span>#{jogosProcessados.length - idx}</span>
-                  <b style={{color: res.acertos >= 11 ? '#15803d' : '#64748b'}}>{res.acertos} ACERTOS</b>
-                  <button onClick={() => deletarUmJogo(idx)} style={styles.btnDeletarUm}>✕</button>
+      <div style={{
+        ...styles.gradeSelecao,
+        pointerEvents: estaTravada ? 'none' : 'auto',
+        opacity: estaTravada ? 0.88 : 1,
+        userSelect: 'none'
+      }}>
+        {Array.from({ length: LINHAS_QTD }, (_, linhaIdx) => (
+          <div key={linhaIdx} style={{ display: 'flex', gap: 4 }}>
+            {NUMS.map(num => {
+              const estado = cartela.selecionadas[linhaIdx][num - 1];
+              const numero = linhaIdx * COLUNAS_QTD + num;
+              const gabAtivo = (gabaritos || []).find((g: any) => g.id === gabaritoAtivoParaComparacaoId);
+              const corAtiva = gabAtivo ? CORES_GABARITO[gabAtivo.corIdx] : null;
+              const acertouNoGabarito = gabAtivo ? gabAtivo.valores[linhaIdx][num - 1] === 1 : false;
+              let background = "#ffffff";
+              let color = "#334155";
+              let border = "1px solid #cbd5e1";
+              let boxShadow = 'none';
+              let opacity = 1;
+
+              if (estado === 1) {
+                background = "#3b82f6";
+                color = "#ffffff";
+                border = "2px solid #2563eb";
+              } else if (estado === 2) {
+                background = "#ef4444";
+                color = "#ffffff";
+                border = "2px solid #b91c1c";
+              }
+
+              if (gabaritoAtivoParaComparacaoId !== null) {
+                if (estado === 1 || estado === 2) {
+                  if (acertouNoGabarito) {
+                    background = corAtiva ? corAtiva.solido : '#16a34a';
+                    border = `2px solid ${corAtiva ? corAtiva.borda : '#15803d'}`;
+                    color = '#ffffff';
+                    boxShadow = '0 0 8px rgba(15, 23, 42, 0.35)';
+                  } else {
+                    background = 'transparent';
+                    border = '1px dashed #94a3b8';
+                    color = '#64748b';
+                    opacity = 1;
+                  }
+                } else {
+                  background = '#ffffff';
+                  color = '#e2e8f0';
+                  border = '1px solid #f1f5f9';
+                }
+              }
+
+              return (
+                <button
+                  key={num}
+                  disabled={estaTravada}
+                  style={{
+                    ...(celulaCartelaStyle || styles.celulaCartela),
+                    background,
+                    color,
+                    border,
+                    boxShadow,
+                    opacity,
+                    cursor: estaTravada ? "default" : "pointer",
+                  }}
+                  onClick={() => alternarNumero(cartela.id, linhaIdx, num)}
+                >
+                  {(numero === 100 ? 0 : numero).toString().padStart(2, "0")}
+                </button>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+
+      <button
+        disabled={estaTravada}
+        style={{
+          ...styles.btnSalvar,
+          background: estaTravada ? "#94a3b8" : "#16a34a",
+          cursor: estaTravada ? "not-allowed" : "pointer"
+        }}
+        onClick={() => salvarCartela(cartela.id)}
+      >
+        {estaTravada ? "CARTELA TRAVADA" : "SALVAR"}
+      </button>
+      {cartela.msg && <div style={{ color: '#16a34a', marginTop: 6, fontWeight: 600, fontSize: 12, textAlign: 'center' }}>{cartela.msg}</div>}
+    </div>
+  );
+}
+
+export default function Gerador() {
+  const [montado, setMontado] = useState(false);
+  const [salvos, setSalvos] = useState<number[][][]>([]);
+  const [editandoIdx, setEditandoIdx] = useState<number | null>(null);
+  const [cartelaEditTemp, setCartelaEditTemp] = useState<number[][] | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
+  const [gabaritos, setGabaritos] = useState<Gabarito5x20[]>([]);
+  const [gabaritoAtivoParaComparacaoId, setGabaritoAtivoParaComparacaoId] = useState<number | null>(null);
+  const [relatorioGeralAberto, setRelatorioGeralAberto] = useState(false);
+  const [travaGeral, setTravaGeral] = useState(false);
+  const [cartelasFixas, setCartelasFixas] = useState<CartelaFixa5x20Item[]>([]);
+
+  // Expansão do Relatório de Auditoria no Gabarito
+  const [gabExpandidoId, setGabExpandidoId] = useState<number | null>(null);
+
+  // Troca a Longa Distância
+  const [cartelaSelecionadaParaTroca, setCartelaSelecionadaParaTroca] = useState<number | null>(null);
+
+  // Estados do Raio-X
+  const [painelRaioXAberto, setPainelRaioXAberto] = useState(false);
+  const [raioXPos, setRaioXPos] = useState({ x: 40, y: 100 });
+  const [qtdTopCustom, setQtdTopCustom] = useState<number>(50);
+  const [qtdFaixasVaziasAuto, setQtdFaixasVaziasAuto] = useState<number>(6);
+  const [ponteiroCarrossel, setPonteiroCarrossel] = useState<number>(0);
+
+  // Faixas Travadas Vazias
+  const [modoVazias, setModoVazias] = useState<'manual' | 'auto'>('manual');
+  const [faixasTravadasVazias, setFaixasTravadasVazias] = useState<number[]>([]);
+  const [indicePerfilDinamico, setIndicePerfilDinamico] = useState<number>(0);
+
+  const gerarGradeVazia = () => Array(LINHAS_QTD).fill(0).map(() => Array(COLUNAS_QTD).fill(0));
+
+  const relatorioAuditoriaGeral = useMemo(() => {
+    if (gabaritos.length === 0 || cartelasFixas.length === 0) {
+      return null;
+    }
+
+    const faixasPontos: Record<number, number> = {
+      20: 0, 19: 0, 18: 0, 17: 0, 16: 0, 15: 0, 14: 0, 0: 0
+    };
+
+    let melhorAcertoGeral = 0;
+    let campeao = { gabaritoNome: '', cartelaNumero: 0, acertos: 0 };
+
+    const detalhePorCartela = cartelasFixas.map((cartela) => {
+      let melhorDestaCartela = 0;
+      let gabaritoMelhorNome = '';
+      const acertosPorGabarito: { gabNome: string; acertos: number }[] = [];
+
+      gabaritos.forEach((gab, gIdx) => {
+        let acertos = 0;
+        for (let l = 0; l < LINHAS_QTD; l++) {
+          for (let c = 0; c < COLUNAS_QTD; c++) {
+            const naCartela = cartela.selecionadas[l][c] === 1 || cartela.selecionadas[l][c] === 2;
+            const noGab = gab.valores[l][c] === 1;
+            if (naCartela && noGab) acertos++;
+          }
+        }
+
+        acertosPorGabarito.push({ gabNome: `G${gIdx + 1}`, acertos });
+
+        if (faixasPontos[acertos] !== undefined) {
+          faixasPontos[acertos]++;
+        }
+
+        if (acertos > melhorDestaCartela) {
+          melhorDestaCartela = acertos;
+          gabaritoMelhorNome = `G${gIdx + 1}`;
+        }
+
+        if (acertos > melhorAcertoGeral) {
+          melhorAcertoGeral = acertos;
+          campeao = { gabaritoNome: `G${gIdx + 1}`, cartelaNumero: cartela.numeroCartela, acertos };
+        }
+      });
+
+      return {
+        numeroCartela: cartela.numeroCartela,
+        melhorAcerto: melhorDestaCartela,
+        melhorGabarito: gabaritoMelhorNome,
+        acertosPorGabarito
+      };
+    });
+
+    return {
+      faixasPontos,
+      campeao,
+      detalhePorCartela: detalhePorCartela.sort((a, b) => b.melhorAcerto - a.melhorAcerto),
+      totalCartelas: cartelasFixas.length,
+      totalGabaritos: gabaritos.length
+    };
+  }, [gabaritos, cartelasFixas]);
+
+  useEffect(() => {
+    const fixasSalvas = localStorage.getItem(STORAGE_CARTELAS_FIXAS_KEY);
+    if (fixasSalvas) {
+      const parsed: CartelaFixa5x20Item[] = JSON.parse(fixasSalvas);
+      const migradas = parsed.map((c, i) => ({
+        ...c,
+        numeroCartela: c.numeroCartela || (i + 1)
+      }));
+      setCartelasFixas(migradas);
+    } else {
+      setCartelasFixas([
+        { id: 1, numeroCartela: 1, selecionadas: gerarGradeVazia(), msg: "", bloqueada: false },
+        { id: 2, numeroCartela: 2, selecionadas: gerarGradeVazia(), msg: "", bloqueada: false },
+        { id: 3, numeroCartela: 3, selecionadas: gerarGradeVazia(), msg: "", bloqueada: false },
+        { id: 4, numeroCartela: 4, selecionadas: gerarGradeVazia(), msg: "", bloqueada: false },
+      ]);
+    }
+
+    const s = localStorage.getItem(STORAGE_CARTELAS_SALVAS_KEY);
+    if (s) setSalvos(JSON.parse(s));
+
+    const gSalvos = localStorage.getItem(STORAGE_GABARITOS_KEY);
+    if (gSalvos) setGabaritos(JSON.parse(gSalvos));
+
+    const travaSalva = localStorage.getItem(STORAGE_TRAVA_GERAL_KEY);
+    if (travaSalva) setTravaGeral(JSON.parse(travaSalva));
+    
+    const handleResize = () => setIsMobile(window.innerWidth < 700);
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    setMontado(true);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    if (montado) localStorage.setItem(STORAGE_CARTELAS_FIXAS_KEY, JSON.stringify(cartelasFixas));
+  }, [cartelasFixas, montado]);
+
+  useEffect(() => {
+    if (montado) localStorage.setItem(STORAGE_CARTELAS_SALVAS_KEY, JSON.stringify(salvos));
+  }, [salvos, montado]);
+
+  useEffect(() => {
+    if (montado) localStorage.setItem(STORAGE_GABARITOS_KEY, JSON.stringify(gabaritos));
+  }, [gabaritos, montado]);
+
+  useEffect(() => {
+    if (montado) localStorage.setItem(STORAGE_TRAVA_GERAL_KEY, JSON.stringify(travaGeral));
+  }, [travaGeral, montado]);
+
+  const alternarTravaGeral = () => setTravaGeral(prev => !prev);
+
+  const alternarTravaIndividual = (id: number) => {
+    setCartelasFixas(prev => prev.map(c => 
+      c.id === id ? { ...c, bloqueada: !c.bloqueada } : c
+    ));
+  };
+
+  const trocarDiretoPosicao = (origemIdx: number, destinoIdx: number) => {
+    if (destinoIdx < 0 || destinoIdx >= cartelasFixas.length || origemIdx === destinoIdx) return;
+    setCartelasFixas(prev => {
+      const nova = [...prev];
+      const temp = nova[origemIdx];
+      nova[origemIdx] = nova[destinoIdx];
+      nova[destinoIdx] = temp;
+      return nova;
+    });
+  };
+
+  const iniciarOuExecutarTroca = (indiceClicado: number) => {
+    if (cartelaSelecionadaParaTroca === null) {
+      setCartelaSelecionadaParaTroca(indiceClicado);
+    } else if (cartelaSelecionadaParaTroca === indiceClicado) {
+      setCartelaSelecionadaParaTroca(null);
+    } else {
+      trocarDiretoPosicao(cartelaSelecionadaParaTroca, indiceClicado);
+      setCartelaSelecionadaParaTroca(null);
+    }
+  };
+
+  // Funções Auxiliares de Diagnóstico de Faixas
+  const getFaixasVazias = (grade: number[][]) => {
+    const vazias: number[] = [];
+    grade.forEach((linha, lIdx) => {
+      const temNumero = linha.some(v => v === 1 || v === 2);
+      if (!temNumero) vazias.push(lIdx);
+    });
+    return vazias;
+  };
+
+  const getFaixasFracasOuVazias = (grade: number[][]) => {
+    const fracas: number[] = [];
+    grade.forEach((linha, lIdx) => {
+      const qtd = linha.filter(v => v === 1 || v === 2).length;
+      if (qtd <= 1) fracas.push(lIdx);
+    });
+    return fracas;
+  };
+
+  // 1. Agrupar por similaridade de falhas (clustering)
+  const agruparPorSimilaridadeDeFalhas = () => {
+    if (cartelasFixas.length <= 1) return;
+
+    const lista = [...cartelasFixas];
+    const ordenadas: CartelaFixa5x20Item[] = [];
+    
+    let atual = lista.shift()!;
+    ordenadas.push(atual);
+
+    while (lista.length > 0) {
+      const vaziasAtual = getFaixasVazias(atual.selecionadas);
+      let melhorIndice = 0;
+      let maiorCoincidencia = -1;
+
+      lista.forEach((candidata, idx) => {
+        const vaziasCandidata = getFaixasVazias(candidata.selecionadas);
+        const coincidencia = vaziasAtual.filter(f => vaziasCandidata.includes(f)).length;
+        if (coincidencia > maiorCoincidencia) {
+          maiorCoincidencia = coincidencia;
+          melhorIndice = idx;
+        }
+      });
+
+      atual = lista.splice(melhorIndice, 1)[0];
+      ordenadas.push(atual);
+    }
+
+    setCartelasFixas(ordenadas);
+  };
+
+  // 2. Ordenações Estruturais
+  const ordenarCartelasPor = (tipo: 'topo' | 'base' | 'qtdVazias' | 'numero') => {
+    setCartelasFixas(prev => {
+      const copia = [...prev];
+      if (tipo === 'numero') {
+        return copia.sort((a, b) => a.numeroCartela - b.numeroCartela);
+      }
+      if (tipo === 'qtdVazias') {
+        return copia.sort((a, b) => getFaixasVazias(b.selecionadas).length - getFaixasVazias(a.selecionadas).length);
+      }
+      if (tipo === 'topo') {
+        return copia.sort((a, b) => {
+          const scoreA = getFaixasVazias(a.selecionadas).filter(l => l >= 10).length;
+          const scoreB = getFaixasVazias(b.selecionadas).filter(l => l >= 10).length;
+          return scoreB - scoreA;
+        });
+      }
+      if (tipo === 'base') {
+        return copia.sort((a, b) => {
+          const scoreA = getFaixasVazias(a.selecionadas).filter(l => l < 10).length;
+          const scoreB = getFaixasVazias(b.selecionadas).filter(l => l < 10).length;
+          return scoreB - scoreA;
+        });
+      }
+      return copia;
+    });
+  };
+
+  const adicionarCartelaFixa = () => {
+    setCartelasFixas(prev => {
+      const maiorNum = prev.reduce((max, c) => Math.max(max, c.numeroCartela || 0), 0);
+      return [
+        ...prev,
+        { id: Date.now(), numeroCartela: maiorNum + 1, selecionadas: gerarGradeVazia(), msg: "", bloqueada: false }
+      ];
+    });
+  };
+
+  const removerCartelaFixa = (id: number) => {
+    if (cartelasFixas.length <= 1) {
+      alert("Mantenha ao menos 1 cartela fixa!");
+      return;
+    }
+    setCartelasFixas(prev => prev.filter(c => c.id !== id));
+  };
+
+  const alternarNumeroCartelaFixa = (id: number, linhaIdx: number, num: number) => {
+    setCartelasFixas(prev => prev.map(cartela => {
+      if (cartela.id !== id) return cartela;
+      const idx = num - 1;
+      const novaGrade = cartela.selecionadas.map((linha, lIdx) => {
+        if (lIdx !== linhaIdx) return linha;
+        const novaLinha = [...linha];
+        novaLinha[idx] = (novaLinha[idx] + 1) % 3;
+        return novaLinha;
+      });
+      return { ...cartela, selecionadas: novaGrade, msg: "" };
+    }));
+  };
+
+  const salvarCartelaFixa = (id: number) => {
+    const cartela = cartelasFixas.find(c => c.id === id);
+    if (!cartela) return;
+
+    const jaSalvo = salvos.some(s => JSON.stringify(s) === JSON.stringify(cartela.selecionadas));
+    if (jaSalvo) {
+      setCartelasFixas(prev => prev.map(c => c.id === id ? { ...c, msg: "⚠️ Já foi salva!" } : c));
+      return;
+    }
+
+    const novosSalvos = [cartela.selecionadas.map(l => [...l]), ...salvos];
+    setSalvos(novosSalvos);
+
+    setCartelasFixas(prev => prev.map(c => {
+      if (c.id !== id) return c;
+      const resetComFixos = c.selecionadas.map(linha => linha.map(v => (v === 2 ? 2 : 0)));
+      return { ...c, selecionadas: resetComFixos, msg: "Salva com sucesso!" };
+    }));
+  };
+
+  const arrastoRef = useRef<{ id: number | null; startX: number; startY: number; origemX: number; origemY: number }>({
+    id: null, startX: 0, startY: 0, origemX: 0, origemY: 0,
+  });
+
+  const arrastoRaioXRef = useRef<{ ativo: boolean; startX: number; startY: number; origemX: number; origemY: number }>({
+    ativo: false, startX: 0, startY: 0, origemX: 0, origemY: 0,
+  });
+
+  useEffect(() => {
+    const aoMoverRato = (e: MouseEvent) => {
+      if (arrastoRef.current.id !== null) {
+        const { id, startX, startY, origemX, origemY } = arrastoRef.current;
+        setGabaritos((anteriores) =>
+          anteriores.map((gab) => {
+            if (gab.id !== id) return gab;
+            return { ...gab, x: Math.max(10, origemX + (e.clientX - startX)), y: Math.max(10, origemY + (e.clientY - startY)) };
+          })
+        );
+      }
+
+      if (arrastoRaioXRef.current.ativo) {
+        const { startX, startY, origemX, origemY } = arrastoRaioXRef.current;
+        setRaioXPos({
+          x: Math.max(10, origemX + (e.clientX - startX)),
+          y: Math.max(10, origemY + (e.clientY - startY))
+        });
+      }
+    };
+
+    const aoSoltarRato = () => { 
+      arrastoRef.current.id = null;
+      arrastoRaioXRef.current.ativo = false;
+    };
+
+    window.addEventListener('mousemove', aoMoverRato);
+    window.addEventListener('mouseup', aoSoltarRato);
+    return () => {
+      window.removeEventListener('mousemove', aoMoverRato);
+      window.removeEventListener('mouseup', aoSoltarRato);
+    };
+  }, []);
+
+  const iniciarArrastoGabarito = (e: React.MouseEvent, gab: Gabarito5x20) => {
+    arrastoRef.current = { id: gab.id, startX: e.clientX, startY: e.clientY, origemX: gab.x, origemY: gab.y };
+  };
+
+  const iniciarArrastoRaioX = (e: React.MouseEvent) => {
+    arrastoRaioXRef.current = {
+      ativo: true,
+      startX: e.clientX,
+      startY: e.clientY,
+      origemX: raioXPos.x,
+      origemY: raioXPos.y
+    };
+  };
+
+  const adicionarGabarito = () => {
+    const novo: Gabarito5x20 = {
+      id: Date.now(),
+      x: 120 + (gabaritos.length % 4) * 30,
+      y: 90 + (gabaritos.length % 4) * 30,
+      valores: gerarGradeVazia(),
+      corIdx: gabaritos.length % CORES_GABARITO.length,
+    };
+    setGabaritos((prev) => [...prev, novo]);
+  };
+
+  const limparTodosGabaritos = () => {
+    if (gabaritos.length === 0) return;
+    if (window.confirm(`Tem certeza que deseja apagar todos os ${gabaritos.length} gabaritos?`)) {
+      setGabaritos([]);
+      localStorage.removeItem(STORAGE_GABARITOS_KEY);
+      setGabaritoAtivoParaComparacaoId(null);
+      setGabExpandidoId(null);
+    }
+  };
+
+  const alternarNumeroGabarito = (idGabarito: number, linhaIdx: number, numIdx: number) => {
+    setGabaritos((anteriores) =>
+      anteriores.map((gab) => {
+        if (gab.id !== idGabarito) return gab;
+        const novosValores = gab.valores.map((linha, lIdx) =>
+          lIdx === linhaIdx ? linha.map((val, nIdx) => (nIdx === numIdx ? (val === 0 ? 1 : 0) : val)) : [...linha]
+        );
+        return { ...gab, valores: novosValores };
+      })
+    );
+  };
+
+  const limparGabarito = (idGabarito: number) => {
+    setGabaritos((anteriores) =>
+      anteriores.map((gab) => gab.id === idGabarito ? { ...gab, valores: gerarGradeVazia() } : gab)
+    );
+  };
+
+  const excluirGabarito = (idGabarito: number) => {
+    setGabaritos((anteriores) => anteriores.filter((gab) => gab.id !== idGabarito));
+  };
+
+  const alternarNumeroEdit = (linhaIdx: number, idx2: number) => {
+    setCartelaEditTemp(prev => prev!.map((linha, i) => {
+      if (i !== linhaIdx) return linha;
+      const novoArr = [...linha];
+      novoArr[idx2] = (novoArr[idx2] + 1) % 3;
+      return novoArr;
+    }));
+  };
+
+  // --- ESTATÍSTICAS 100 DEZENAS ---
+  const estatisticas100 = useMemo(() => {
+    const contadores: number[] = Array(100).fill(0);
+
+    cartelasFixas.forEach(cartela => {
+      cartela.selecionadas.forEach((linha, lIdx) => {
+        linha.forEach((val, cIdx) => {
+          if (val === 1 || val === 2) {
+            const numero = lIdx * COLUNAS_QTD + cIdx + 1;
+            contadores[numero - 1] += 1;
+          }
+        });
+      });
+    });
+
+    salvos.forEach(grade => {
+      grade.forEach((linha, lIdx) => {
+        linha.forEach((val, cIdx) => {
+          if (val === 1 || val === 2) {
+            const numero = lIdx * COLUNAS_QTD + cIdx + 1;
+            contadores[numero - 1] += 1;
+          }
+        });
+      });
+    });
+
+    const lista = contadores.map((qtd, idx) => {
+      const numReal = idx + 1;
+      const formatado = (numReal === 100 ? 0 : numReal).toString().padStart(2, "0");
+      return { numero: formatado, valorBruto: numReal, qtd };
+    });
+
+    const ordenadosPorUso = [...lista].sort((a, b) => b.qtd - a.qtd);
+    const naoUsados = lista.filter(item => item.qtd === 0);
+    const maxQtd = Math.max(...contadores, 1);
+
+    return { lista, ordenadosPorUso, naoUsados, maxQtd, totalJogos: cartelasFixas.length + salvos.length };
+  }, [cartelasFixas, salvos]);
+
+  // --- ESTATÍSTICAS DAS 20 FAIXAS HORIZONTAIS ---
+  const estatisticasFaixasHorizontais = useMemo(() => {
+    const contagemLinhas = Array(LINHAS_QTD).fill(0);
+
+    const todas = [
+      ...cartelasFixas.map(c => c.selecionadas),
+      ...salvos
+    ];
+
+    todas.forEach(grade => {
+      grade.forEach((linha, lIdx) => {
+        linha.forEach((val) => {
+          if (val === 1 || val === 2) {
+            contagemLinhas[lIdx] += 1;
+          }
+        });
+      });
+    });
+
+    const faixas = contagemLinhas.map((qtd, linhaIdx) => {
+      const inicio = linhaIdx * COLUNAS_QTD + 1;
+      const fim = (linhaIdx + 1) * COLUNAS_QTD;
+      const inicioFmt = (inicio === 100 ? 0 : inicio).toString().padStart(2, "0");
+      const fimFmt = (fim === 100 ? 0 : fim).toString().padStart(2, "0");
+      return {
+        linhaIdx,
+        rotulo: `${inicioFmt}-${fimFmt}`,
+        qtd
+      };
+    });
+
+    const faixasMaisVazias = [...faixas].sort((a, b) => a.qtd - b.qtd);
+    const faixasTotalmenteZeradas = faixas.filter(f => f.qtd === 0);
+
+    return { faixas, faixasMaisVazias, faixasTotalmenteZeradas };
+  }, [cartelasFixas, salvos]);
+
+  const alternarTravaFaixaVazia = (linhaIdx: number) => {
+    setModoVazias('manual');
+    setFaixasTravadasVazias(prev => 
+      prev.includes(linhaIdx) 
+        ? prev.filter(idx => idx !== linhaIdx) 
+        : [...prev, linhaIdx]
+    );
+  };
+
+  const alternarDezenaNoGabaritoAtivo = (valorBruto: number) => {
+    let gabAlvoId: number;
+
+    if (gabaritos.length === 0) {
+      const novoId = Date.now();
+      const novo: Gabarito5x20 = {
+        id: novoId,
+        x: 180,
+        y: 100,
+        valores: gerarGradeVazia(),
+        corIdx: 0,
+      };
+      setGabaritos([novo]);
+      gabAlvoId = novoId;
+    } else {
+      gabAlvoId = gabaritos[gabaritos.length - 1].id;
+    }
+
+    const linhaIdx = Math.floor((valorBruto - 1) / COLUNAS_QTD);
+    const colIdx = (valorBruto - 1) % COLUNAS_QTD;
+
+    setGabaritos(prev => prev.map(gab => {
+      if (gab.id !== gabAlvoId) return gab;
+      const novosValores = gab.valores.map((linha, lIdx) =>
+        lIdx === linhaIdx
+          ? linha.map((val, cIdx) => (cIdx === colIdx ? (val === 0 ? 1 : 0) : val))
+          : [...linha]
+      );
+      return { ...gab, valores: novosValores };
+    }));
+  };
+
+  // --- MOTOR INTELIGENTE: GERAÇÃO BALANCEADA E EXATIDÃO DE DEZENAS ---
+  const exportarTopParaGabarito = (quantidade: number) => {
+    let faixasBloqueadasIndices = new Set<number>();
+
+    if (faixasTravadasVazias.length > 0) {
+      faixasTravadasVazias.forEach(idx => faixasBloqueadasIndices.add(idx));
+    } else {
+      const perfisReais = cartelasFixas
+        .map(c => getFaixasFracasOuVazias(c.selecionadas))
+        .filter(p => p.length >= 3);
+
+      if (perfisReais.length > 0) {
+        const perfilEscolhido = perfisReais[indicePerfilDinamico % perfisReais.length];
+        setIndicePerfilDinamico(prev => prev + 1);
+
+        const faixasCorte = [...perfilEscolhido]
+          .sort(() => Math.random() - 0.5)
+          .slice(0, Math.min(perfilEscolhido.length, qtdFaixasVaziasAuto));
+
+        faixasCorte.forEach(idx => faixasBloqueadasIndices.add(idx));
+      } else {
+        const fracas = estatisticasFaixasHorizontais.faixasMaisVazias.slice(0, qtdFaixasVaziasAuto).map(f => f.linhaIdx);
+        fracas.forEach(idx => faixasBloqueadasIndices.add(idx));
+      }
+    }
+
+    const dezenasDisponiveis = estatisticas100.ordenadosPorUso.filter(item => {
+      if (item.qtd <= 0) return false;
+      const linhaDaDezena = Math.floor((item.valorBruto - 1) / COLUNAS_QTD);
+      return !faixasBloqueadasIndices.has(linhaDaDezena);
+    });
+
+    if (dezenasDisponiveis.length === 0) {
+      alert("Nenhuma dezena disponível nas faixas ativas! Verifique as travas ou preencha as cartelas.");
+      return;
+    }
+
+    const totalDisponiveis = dezenasDisponiveis.length;
+    const meta = Math.min(Math.max(1, quantidade), totalDisponiveis);
+
+    const selecionados: number[] = [];
+    let idxAtual = ponteiroCarrossel;
+    let tentativas = 0;
+    const limiteSeguranca = totalDisponiveis * 3;
+
+    while (selecionados.length < meta && tentativas < limiteSeguranca) {
+      const dezenaItem = dezenasDisponiveis[idxAtual % totalDisponiveis];
+      if (!selecionados.includes(dezenaItem.valorBruto)) {
+        selecionados.push(dezenaItem.valorBruto);
+      }
+      idxAtual = (idxAtual + 1) % totalDisponiveis;
+      tentativas++;
+    }
+
+    if (selecionados.length < quantidade) {
+      const resto = estatisticas100.ordenadosPorUso.filter(
+        d => !selecionados.includes(d.valorBruto) && !faixasBloqueadasIndices.has(Math.floor((d.valorBruto - 1) / COLUNAS_QTD))
+      );
+      for (const item of resto) {
+        if (selecionados.length >= quantidade) break;
+        selecionados.push(item.valorBruto);
+      }
+    }
+
+    setPonteiroCarrossel((ponteiroCarrossel + 11) % Math.max(1, totalDisponiveis));
+
+    const novaGrade = gerarGradeVazia();
+    selecionados.forEach(num => {
+      const linha = Math.floor((num - 1) / COLUNAS_QTD);
+      const col = (num - 1) % COLUNAS_QTD;
+      novaGrade[linha][col] = 1;
+    });
+
+    const novoGab: Gabarito5x20 = {
+      id: Date.now(),
+      x: 150 + (gabaritos.length % 4) * 35,
+      y: 120 + (gabaritos.length % 4) * 35,
+      valores: novaGrade,
+      corIdx: gabaritos.length % CORES_GABARITO.length,
+    };
+
+    setGabaritos(prev => [...prev, novoGab]);
+  };
+
+  // --- MOTOR DE AUDITORIA REVERSA: COMPARA GABARITO COM TODAS AS CARTELAS FIXAS ---
+ // --- MOTOR DE AUDITORIA REVERSA CALIBRADO ---
+  const auditarGabaritoContraCartelas = (gabValores: number[][]) => {
+    const resultados: { numeroCartela: number; acertos: number; ehPremiada: boolean }[] = [];
+
+    // Conta quantos números estão de facto marcados neste gabarito
+    const totalMarcadosNoGabarito = gabValores.reduce(
+      (acc, linha) => acc + linha.filter(v => v === 1).length,
+      0
+    );
+
+    // Se o gabarito estiver vazio ou incompleto (< 15 dezenas), não valida prémios
+    if (totalMarcadosNoGabarito < 15) {
+      return { totalAuditadas: 0, resultados: [], premiadas: [] };
+    }
+
+    cartelasFixas.forEach(c => {
+      let acertos = 0;
+      let marcadasNaCartela = 0;
+
+      for (let l = 0; l < LINHAS_QTD; l++) {
+        for (let col = 0; col < COLUNAS_QTD; col++) {
+          const naCartela = c.selecionadas[l][col] === 1 || c.selecionadas[l][col] === 2;
+          const noGabarito = gabValores[l][col] === 1;
+
+          if (naCartela) marcadasNaCartela++;
+          if (naCartela && noGabarito) acertos++;
+        }
+      }
+
+      if (marcadasNaCartela >= 15) {
+        // Só considera os 0 pontos como prémio real se o gabarito tiver de facto dezenas suficientes (ex: 20 a 50)
+        const ehPremiada = acertos >= 15 || (acertos === 0 && totalMarcadosNoGabarito >= 20);
+        resultados.push({
+          numeroCartela: c.numeroCartela,
+          acertos,
+          ehPremiada
+        });
+      }
+    });
+
+    const premiadas = resultados
+      .filter(r => r.ehPremiada)
+      .sort((a, b) => b.acertos - a.acertos);
+
+    return { totalAuditadas: resultados.length, resultados, premiadas };
+  };
+
+  if (!montado) return null;
+
+  const celulaEstilo = {
+    ...styles.celulaCartela,
+    width: isMobile ? 26 : 24,
+    height: isMobile ? 26 : 24,
+    fontSize: isMobile ? 13 : 10,
+  };
+
+  return (
+    <div style={{ ...styles.container, padding: isMobile ? '10px' : '40px 20px' }}>
+      
+      {/* BARRA FIXA DE ALERTA QUANDO UMA CARTELA ESTIVER AGUARDANDO TROCA */}
+      {cartelaSelecionadaParaTroca !== null && (
+        <div style={styles.alertaTrocaAtiva}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 16 }}>⇄</span>
+            <span>
+              Cartela <b>#{cartelasFixas[cartelaSelecionadaParaTroca]?.numeroCartela}</b> selecionada! Role e clique no botão <b>[⇄ Trocar]</b> de qualquer outra cartela para inverter.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setCartelaSelecionadaParaTroca(null)}
+            style={styles.btnCancelarTroca}
+          >
+            Cancelar Troca ✕
+          </button>
+        </div>
+      )}
+
+      {/* PAINEL FLUTUANTE DO RAIO-X */}
+      {painelRaioXAberto && (
+        <div style={{
+          ...styles.janelaFlutuanteRaioX,
+          left: isMobile ? 10 : raioXPos.x,
+          top: isMobile ? 10 : raioXPos.y,
+          width: isMobile ? '95%' : 600,
+        }}>
+          <div 
+            onMouseDown={iniciarArrastoRaioX}
+            style={styles.alcaJanelaFlutuante}
+            title="Clique e arraste para reposicionar esta janela"
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 13 }}>✥</span>
+              <span style={{ fontSize: 12, fontWeight: 900, color: '#0f172a' }}>
+                RAIO-X • CONTROLE MANUAL DE FAIXAS VAZIAS (HORIZONTAIS)
+              </span>
+            </div>
+            <button 
+              onClick={() => setPainelRaioXAberto(false)} 
+              style={styles.btnFecharFlutuante}
+            >
+              ✕
+            </button>
+          </div>
+
+          <div style={styles.corpoFlutuante}>
+            
+            {/* PAINEL DE FAIXAS COM TRAVAS */}
+            <div style={{
+              background: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              borderRadius: 8,
+              padding: '8px 10px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 6
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                <span style={{ fontSize: 11, fontWeight: 900, color: '#1e293b', textTransform: 'uppercase' }}>
+                  🔒 Clique nas faixas que deseja DEIXAR VAZIAS nos gabaritos:
+                </span>
+                
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {faixasTravadasVazias.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setFaixasTravadasVazias([])}
+                      style={styles.btnDestravarTodas}
+                      title="Limpar todas as faixas travadas vazias"
+                    >
+                      🔓 Destravar Todas ({faixasTravadasVazias.length})
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const top3 = estatisticasFaixasHorizontais.faixasMaisVazias.slice(0, 3).map(f => f.linhaIdx);
+                      setFaixasTravadasVazias(top3);
+                      setModoVazias('manual');
+                    }}
+                    style={styles.btnAutoTrava}
+                    title="Trava rapidamente as 3 faixas com menos saídas"
+                  >
+                    ⚡ Travar 3 Mais Fracas
+                  </button>
                 </div>
-                <div style={styles.dezenasRow}>
-                  {res.jogo.map(n => (
-                    <span key={n} style={{ 
-                      ...styles.dezena, 
-                      backgroundColor: dezenasSorteadas.includes(n) ? '#22c55e' : '#f8fafc',
-                      color: dezenasSorteadas.includes(n) ? 'white' : '#94a3b8'
-                    }}>{String(n).padStart(2, '0')}</span>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 4, maxHeight: 110, overflowY: 'auto', padding: 2 }}>
+                {estatisticasFaixasHorizontais.faixas.map((f) => {
+                  const estaTravadaVazia = faixasTravadasVazias.includes(f.linhaIdx);
+
+                  return (
+                    <button
+                      key={f.linhaIdx}
+                      type="button"
+                      onClick={() => alternarTravaFaixaVazia(f.linhaIdx)}
+                      title={`Clique para ${estaTravadaVazia ? 'liberar' : 'travar vazia'} a faixa [${f.rotulo}] (${f.qtd}x marcações)`}
+                      style={{
+                        background: estaTravadaVazia ? '#fee2e2' : f.qtd === 0 ? '#fff1f2' : '#ffffff',
+                        border: estaTravadaVazia ? '2px solid #ef4444' : f.qtd === 0 ? '1px solid #fecdd3' : '1px solid #cbd5e1',
+                        color: estaTravadaVazia ? '#b91c1c' : f.qtd === 0 ? '#e11d48' : '#334155',
+                        fontSize: 10,
+                        fontWeight: 800,
+                        padding: '3px 4px',
+                        borderRadius: 4,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                      }}
+                    >
+                      <span>{f.rotulo}</span>
+                      <span style={{ fontSize: 9, opacity: 0.85 }}>
+                        {estaTravadaVazia ? '🔒' : `${f.qtd}x`}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#64748b' }}>
+                <span>Faixas travadas para NÃO entrar: <b>{faixasTravadasVazias.length} faixas</b></span>
+                <span>Modo de montagem: <b style={{ color: faixasTravadasVazias.length > 0 ? '#dc2626' : '#16a34a' }}>{faixasTravadasVazias.length > 0 ? 'Exclusão Fixa Ativa' : 'Rodízio Equilibrado de Falhas Reais'}</b></span>
+              </div>
+            </div>
+
+            {/* GERAÇÃO EM CARROSSEL */}
+            <div style={{ 
+              display: 'flex', 
+              gap: 8, 
+              flexWrap: 'wrap', 
+              alignItems: 'center', 
+              justifyContent: 'space-between',
+              background: '#f8fafc',
+              padding: '8px 10px',
+              borderRadius: 8,
+              border: '1px solid #e2e8f0'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 11, fontWeight: 800, color: '#475569' }}>
+                  Pedir no Gabarito:
+                </span>
+                <input 
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={qtdTopCustom}
+                  onChange={(e) => setQtdTopCustom(Math.max(1, Math.min(100, Number(e.target.value) || 1)))}
+                  style={{
+                    width: 50,
+                    padding: '3px 4px',
+                    fontSize: 12,
+                    fontWeight: 800,
+                    textAlign: 'center',
+                    borderRadius: 6,
+                    border: '1px solid #cbd5e1',
+                    outline: 'none',
+                    color: '#0f172a',
+                    background: '#fff'
+                  }}
+                />
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>
+                  dezenas (girando nas faixas liberadas)
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 11, fontWeight: 800, color: '#475569' }}>
+                  Cortar faixas vazias:
+                </span>
+                <input
+                  type="number"
+                  min={1}
+                  max={15}
+                  value={qtdFaixasVaziasAuto}
+                  onChange={(e) => setQtdFaixasVaziasAuto(Math.max(1, Math.min(15, Number(e.target.value) || 1)))}
+                  style={{
+                    width: 50,
+                    padding: '3px 4px',
+                    fontSize: 12,
+                    fontWeight: 800,
+                    textAlign: 'center',
+                    borderRadius: 6,
+                    border: '1px solid #cbd5e1',
+                    outline: 'none',
+                    color: '#0f172a',
+                    background: '#fff'
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: 4 }}>
+                <button 
+                  type="button" 
+                  onClick={() => exportarTopParaGabarito(qtdTopCustom)} 
+                  style={{
+                    background: '#0284c7',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: 6,
+                    padding: '6px 14px',
+                    fontSize: 11,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 4px rgba(2, 132, 199, 0.25)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4
+                  }}
+                  title="Gera o gabarito girando de forma infinita e inteligente"
+                >
+                  ⚡ Gerar Gabarito
+                </button>
+
+                <button 
+                  type="button" 
+                  onClick={() => {
+                    setPonteiroCarrossel(0);
+                    alert("Rodatória reiniciada! O próximo gabarito começará do Top #1.");
+                  }} 
+                  style={{
+                    background: '#fff',
+                    color: '#475569',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: 6,
+                    padding: '5px 8px',
+                    fontSize: 11,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                  }}
+                  title="Reinicia a contagem do carrossel para o 1º colocado"
+                >
+                  ↺ Reset
+                </button>
+              </div>
+            </div>
+
+            {/* Mapa 10x10 Interativo */}
+            <div style={styles.gridMapaCalorFlutuante}>
+              {estatisticas100.lista.map(item => {
+                const linhaDaDezena = Math.floor((item.valorBruto - 1) / COLUNAS_QTD);
+                const faixaBloqueada = faixasTravadasVazias.includes(linhaDaDezena);
+                const semUso = item.qtd === 0;
+                const maisUsado = item.qtd >= estatisticas100.maxQtd && item.qtd > 1;
+
+                return (
+                  <button
+                    key={item.numero}
+                    type="button"
+                    onClick={() => alternarDezenaNoGabaritoAtivo(item.valorBruto)}
+                    title={`Dezena ${item.numero} (${item.qtd}x). ${faixaBloqueada ? '[FAIXA TRAVADA VAZIA]' : 'Clique para marcar no Gabarito!'}`}
+                    style={{
+                      ...styles.celulaMapaFlutuante,
+                      background: faixaBloqueada ? '#fee2e2' : semUso ? '#f8fafc' : maisUsado ? '#dcfce7' : '#e0f2fe',
+                      borderColor: faixaBloqueada ? '#fca5a5' : semUso ? '#e2e8f0' : maisUsado ? '#86efac' : '#bae6fd',
+                      opacity: faixaBloqueada ? 0.35 : semUso ? 0.45 : 1,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <span style={{ fontSize: 11, fontWeight: 800, color: faixaBloqueada ? '#b91c1c' : semUso ? '#94a3b8' : maisUsado ? '#15803d' : '#0369a1' }}>
+                      {item.numero}
+                    </span>
+                    <span style={{
+                      fontSize: 8,
+                      fontWeight: 800,
+                      color: faixaBloqueada ? '#ef4444' : semUso ? '#94a3b8' : maisUsado ? '#166534' : '#1e40af'
+                    }}>
+                      {faixaBloqueada ? '✕' : `${item.qtd}x`}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 10, color: '#64748b' }}>
+              <span>Zonas mortas: <b>{estatisticas100.naoUsados.length} dezenas</b></span>
+              <span>Ponteiro carrossel: <b>Posição #{ponteiroCarrossel + 1}</b></span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Camada dos Gabaritos Flutuantes COM AUDITORIA REVERSA */}
+      {gabaritos.map((gab, idx) => {
+        const cor = CORES_GABARITO[gab.corIdx];
+        const marcadosNoGabarito = gab.valores.reduce(
+          (acc, linha) => acc + linha.filter(v => v > 0).length,
+          0
+        );
+
+        // Auditoria instantânea deste gabarito contra todas as cartelas da bancada
+        const auditoria = auditarGabaritoContraCartelas(gab.valores);
+        const estaExpandido = gabExpandidoId === gab.id;
+
+        return (
+          <div
+            key={gab.id}
+            style={{
+              ...styles.gabaritoContainer,
+              left: gab.x,
+              top: gab.y,
+              border: `2px dashed ${cor.borda}`,
+            }}
+          >
+            {/* Alça do Gabarito */}
+            <div
+              onMouseDown={(e) => iniciarArrastoGabarito(e, gab)}
+              style={styles.alcaGabarito}
+              title="Clique e arraste para movimentar este gabarito"
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ fontSize: 11, fontWeight: 900, color: cor.borda }}>G{idx + 1}</span>
+                <span style={styles.badgeContadorGabarito}>{marcadosNoGabarito}</span>
+              </div>
+
+              <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => setGabExpandidoId(prev => prev === gab.id ? null : gab.id)}
+                  style={{
+                    background: auditoria.premiadas.length > 0 ? '#fef3c7' : '#f1f5f9',
+                    border: auditoria.premiadas.length > 0 ? '1px solid #f59e0b' : '1px solid #cbd5e1',
+                    borderRadius: 4,
+                    padding: '2px 5px',
+                    fontSize: 9,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    color: auditoria.premiadas.length > 0 ? '#b45309' : '#475569'
+                  }}
+                  title="Ver auditoria detalhada de pontuação de todas as cartelas"
+                >
+                  {estaExpandido ? "▲ Fechar" : `🏆 ${auditoria.premiadas.length}`}
+                </button>
+
+                {marcadosNoGabarito > 0 && (
+                  <button type="button" onClick={() => limparGabarito(gab.id)} style={styles.btnAcaoMini} title="Limpar">↺</button>
+                )}
+                <button type="button" onClick={() => excluirGabarito(gab.id)} style={{ ...styles.btnAcaoMini, color: '#dc2626' }} title="Fechar">×</button>
+              </div>
+            </div>
+
+            {/* SELO DE AUDITORIA REVERSA INSTANTÂNEA */}
+            <div style={{
+              width: '100%',
+              background: auditoria.premiadas.length > 0 ? '#ecfdf5' : '#ffffff',
+              border: auditoria.premiadas.length > 0 ? '1px solid #6ee7b7' : '1px solid #e2e8f0',
+              borderRadius: 6,
+              padding: '4px 6px',
+              fontSize: 10,
+              fontWeight: 800,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 3,
+              boxShadow: '0 2px 5px rgba(0,0,0,0.08)',
+              pointerEvents: 'auto'
+            }}>
+              {auditoria.premiadas.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#047857' }}>
+                    <span>🏆 <b>PREMIADAS ({auditoria.premiadas.length})</b></span>
+                    <span style={{ fontSize: 9, color: '#065f46' }}>Top: <b>{auditoria.premiadas[0].acertos} pts</b></span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', maxHeight: 40, overflowY: 'auto' }}>
+                    {auditoria.premiadas.map((prem, pIdx) => (
+                      <span
+                        key={pIdx}
+                        style={{
+                          background: prem.acertos === 20 || prem.acertos === 0 ? '#fef08a' : prem.acertos >= 17 ? '#bbf7d0' : '#dcfce7',
+                          color: prem.acertos === 20 || prem.acertos === 0 ? '#854d0e' : prem.acertos >= 17 ? '#15803d' : '#166534',
+                          border: prem.acertos === 20 || prem.acertos === 0 ? '1px solid #eab308' : '1px solid #86efac',
+                          padding: '1px 4px',
+                          borderRadius: 4,
+                          fontSize: 9,
+                          fontWeight: 900
+                        }}
+                      >
+                        #{prem.numeroCartela}: {prem.acertos}p
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ color: '#64748b', textAlign: 'center', fontSize: 9 }}>
+                  Nenhuma cartela com 15+ ou 0 pts ainda
+                </div>
+              )}
+
+              {/* Tabela Retrátil Detalhada */}
+              {estaExpandido && (
+                <div style={{
+                  marginTop: 4,
+                  borderTop: '1px solid #cbd5e1',
+                  paddingTop: 4,
+                  maxHeight: 120,
+                  overflowY: 'auto',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 2
+                }}>
+                  <div style={{ fontSize: 9, fontWeight: 900, color: '#1e293b' }}>
+                    Varredura das Cartelas Fixas:
+                  </div>
+                  {auditoria.resultados.map((res, rIdx) => (
+                    <div
+                      key={rIdx}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        fontSize: 9,
+                        padding: '1px 4px',
+                        borderRadius: 3,
+                        background: res.ehPremiada ? '#dcfce7' : '#f8fafc',
+                        color: res.ehPremiada ? '#15803d' : '#475569',
+                        fontWeight: res.ehPremiada ? 800 : 500
+                      }}
+                    >
+                      <span>Cartela #{res.numeroCartela}</span>
+                      <span><b>{res.acertos} pts</b> {res.ehPremiada && '★'}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Matriz Visual do Gabarito */}
+            <div style={{ ...styles.gradeSelecao, pointerEvents: 'none' }}>
+              {Array.from({ length: LINHAS_QTD }, (_, linhaIdx) => (
+                <div key={linhaIdx} style={{ display: 'flex', gap: 4 }}>
+                  {NUMS.map((num, numIdx) => {
+                    const numero = linhaIdx * COLUNAS_QTD + num;
+                    const ativo = gab.valores[linhaIdx][numIdx] === 1;
+
+                    return (
+                      <button
+                        key={num}
+                        type="button"
+                        onClick={() => alternarNumeroGabarito(gab.id, linhaIdx, numIdx)}
+                        style={{
+                          ...celulaEstilo,
+                          background: ativo ? cor.solido : 'transparent',
+                          borderColor: ativo ? cor.borda : 'transparent',
+                          color: ativo ? '#ffffff' : 'transparent',
+                          borderStyle: 'solid',
+                          borderWidth: ativo ? 2 : 1,
+                          boxShadow: ativo ? '0 2px 8px rgba(0,0,0,0.5)' : 'none',
+                          cursor: 'pointer',
+                          pointerEvents: 'auto',
+                        }}
+                      >
+                        {ativo ? (numero === 100 ? 0 : numero).toString().padStart(2, "0") : ''}
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Barra de Topo */}
+      <div style={styles.topoAcoesBar}>
+        <button style={styles.btnVoltar} onClick={() => window.location.href = '/'}>
+          ⬅ Voltar para Painel
+        </button>
+
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={() => setPainelRaioXAberto(prev => !prev)}
+            style={{
+              ...styles.btnRaioX,
+              background: painelRaioXAberto ? '#0369a1' : '#0284c7',
+            }}
+            title="Abrir painel flutuante de frequência das dezenas"
+          >
+            {painelRaioXAberto ? "📊 Fechar Raio-X" : "📊 Abrir Raio-X Flutuante"}
+          </button>
+
+          <button
+            type="button"
+            onClick={alternarTravaGeral}
+            style={{
+              ...styles.btnAcaoTopo,
+              background: travaGeral ? '#fee2e2' : '#dcfce7',
+              color: travaGeral ? '#b91c1c' : '#15803d',
+              border: travaGeral ? '1px solid #f87171' : '1px solid #86efac',
+            }}
+            title={travaGeral ? "Cartelas travadas contra cliques" : "Travar todas as cartelas"}
+          >
+            {travaGeral ? "🔒 TRAVA GERAL: LIGADA" : "🔓 TRAVA GERAL: LIVRE"}
+          </button>
+
+          <button
+            type="button"
+            style={styles.btnAdicionarCartelaFixa}
+            onClick={adicionarCartelaFixa}
+          >
+            ➕ Adicionar Cartela ({cartelasFixas.length})
+          </button>
+          
+         <button
+            type="button"
+            style={styles.btnNovoGabarito}
+            onClick={adicionarGabarito}
+          >
+            📋 + Cartela Gabarito {gabaritos.length > 0 && `(${gabaritos.length})`}
+          </button>
+          {gabaritos.length > 0 && (
+            <button
+              type="button"
+              onClick={limparTodosGabaritos}
+              style={{
+                background: '#fee2e2',
+                color: '#b91c1c',
+                border: '1px solid #fca5a5',
+                borderRadius: 8,
+                padding: '10px 14px',
+                fontWeight: 800,
+                fontSize: 13,
+                cursor: 'pointer',
+                boxShadow: '0 2px 5px rgba(185, 28, 28, 0.1)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6
+              }}
+              title="Apagar todos os gabaritos da tela para reiniciar a bancada"
+            >
+              🗑️ Limpar Gabaritos ({gabaritos.length})
+            </button>
+          )}
+            <button
+              type="button"
+              onClick={() => setRelatorioGeralAberto(true)}
+              disabled={gabaritos.length === 0}
+              style={{
+                background: '#ecfdf5',
+                color: '#047857',
+                border: '1px solid #6ee7b7',
+                borderRadius: 8,
+                padding: '10px 16px',
+                fontWeight: 800,
+                fontSize: 13,
+                cursor: gabaritos.length === 0 ? 'not-allowed' : 'pointer',
+                boxShadow: '0 2px 5px rgba(4, 120, 87, 0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6
+              }}
+              title="Ver resumo de todas as faixas premiadas e desempenho geral da bancada"
+            >
+              🏆 Relatório Geral {gabaritos.length > 0 && `(${gabaritos.length})`}
+            </button>
+          <button
+            type="button"
+            style={styles.btnTelemetria}
+            onClick={() => {
+              window.open(
+                '/telemetria',
+                'TelemetriaLotomania',
+                'width=1200,height=850,menubar=no,toolbar=no,location=no,status=no'
+              );
+            }}
+            title="Abre a bancada geométrica de vácuo em janela independente para o monitor 2"
+          >
+            🚀 Telemetria 2ª Tela
+          </button>
+        </div>
+      </div>
+
+      <h1 style={styles.title}>GERADOR TÁTICO 5x20</h1>
+
+      {/* BARRA DE AUTO-ORGANIZAÇÃO POR FALHAS */}
+      <div style={styles.barraAutoOrganizacao}>
+        <span style={{ fontSize: 11, fontWeight: 900, color: '#475569', display: 'flex', alignItems: 'center', gap: 4 }}>
+          🎯 Auto-Organizar Bancada:
+        </span>
+        
+        <button 
+          type="button" 
+          onClick={agruparPorSimilaridadeDeFalhas} 
+          style={{ ...styles.btnFiltroAuto, background: '#e0f2fe', color: '#0369a1', borderColor: '#7dd3fc' }}
+          title="Agrupa lado a lado as cartelas que têm as mesmas faixas vazias"
+        >
+          🧬 Agrupar Falhas Parecidas
+        </button>
+
+        <button 
+          type="button" 
+          onClick={() => ordenarCartelasPor('topo')} 
+          style={styles.btnFiltroAuto}
+          title="Coloca primeiro as cartelas cujas faixas vazias estão na parte de baixo (01-50 cheias)"
+        >
+          ⬆ Vazias Embaixo (Foco Topo)
+        </button>
+
+        <button 
+          type="button" 
+          onClick={() => ordenarCartelasPor('base')} 
+          style={styles.btnFiltroAuto}
+          title="Coloca primeiro as cartelas cujas faixas vazias estão na parte de cima (51-00 cheias)"
+        >
+          ⬇ Vazias em Cima (Foco Base)
+        </button>
+
+        <button 
+          type="button" 
+          onClick={() => ordenarCartelasPor('qtdVazias')} 
+          style={styles.btnFiltroAuto}
+          title="Coloca primeiro as cartelas que possuem o maior número de faixas vazias"
+        >
+          🕳 Mais Vazias Primeiro
+        </button>
+
+        <button 
+          type="button" 
+          onClick={() => ordenarCartelasPor('numero')} 
+          style={{ ...styles.btnFiltroAuto, background: '#f8fafc' }}
+          title="Restaura a ordem numérica original (#1, #2, #3...)"
+        >
+          🔢 Ordem Original (#1, #2...)
+        </button>
+      </div>
+
+      {/* Cartelas Fixas da Bancada */}
+      <div style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: isMobile ? 14 : 12,
+        maxWidth: 1300,
+        margin: '0 auto',
+        marginBottom: 30,
+        justifyContent: 'center',
+        alignItems: 'flex-start'
+      }}>
+        {cartelasFixas.map((cartela, idx) => (
+          <CartaoMontarJogo 
+            key={cartela.id}
+            cartela={cartela}
+            indice={idx}
+            totalCartelas={cartelasFixas.length}
+            alternarNumero={alternarNumeroCartelaFixa}
+            salvarCartela={salvarCartelaFixa}
+            removerCartela={removerCartelaFixa}
+            alternarTravaIndividual={alternarTravaIndividual}
+            trocarDiretoPosicao={trocarDiretoPosicao}
+            cartelaSelecionadaParaTroca={cartelaSelecionadaParaTroca}
+            iniciarTroca={iniciarOuExecutarTroca}
+            travaGeralAtiva={travaGeral}
+            celulaCartelaStyle={celulaEstilo}
+            gabaritos={gabaritos}
+            CORES_GABARITO={CORES_GABARITO}
+            gabaritoAtivoParaComparacaoId={gabaritoAtivoParaComparacaoId}
+            setGabaritoAtivoParaComparacaoId={setGabaritoAtivoParaComparacaoId}
+          />
+        ))}
+      </div>
+
+      {/* Cartelas Salvas */}
+      <div style={{ maxWidth: 950, margin: '0 auto' }}>
+        <h3 style={styles.cardTitle}>CARTELAS SALVAS ({salvos.length})</h3>
+        <div style={styles.gridSalvos}>
+          {salvos.map((arr, idx) => (
+            <div key={idx} style={styles.jogoSalvoGrade}>
+              <div style={styles.badgeNumero}>Jogo #{salvos.length - idx}</div>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 10 }}>
+                {(editandoIdx === idx ? cartelaEditTemp! : arr).map((linha, lIdx) => (
+                  <div key={lIdx} style={{ display: 'flex', gap: 3 }}>
+                    {linha.map((estado, nIdx) => {
+                      const numero = lIdx * COLUNAS_QTD + nIdx + 1;
+                      let bg = estado === 1 ? "#3b82f6" : estado === 2 ? "#ef4444" : "#f8fafc";
+                      return (
+                        <button 
+                          key={nIdx}
+                          disabled={editandoIdx !== idx}
+                          onClick={() => alternarNumeroEdit(lIdx, nIdx)}
+                          style={{ 
+                            ...styles.celulaMini, 
+                            background: bg, 
+                            color: estado > 0 ? "#fff" : "#cbd5e1",
+                            cursor: editandoIdx === idx ? 'pointer' : 'default'
+                          }}
+                        >
+                          {(numero === 100 ? 0 : numero).toString().padStart(2, "0")}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ display: 'flex', gap: 5, width: '100%' }}>
+                {editandoIdx === idx ? (
+                  <>
+                    <button style={{ ...styles.btnAcao, background: '#16a34a', color: '#fff' }} onClick={() => {
+                      const novos = salvos.map((c, i) => i === editandoIdx ? cartelaEditTemp! : c);
+                      setSalvos(novos);
+                      setEditandoIdx(null);
+                    }}>OK</button>
+                    <button style={styles.btnAcao} onClick={() => setEditandoIdx(null)}>Sair</button>
+                  </>
+                ) : (
+                  <>
+                    <button style={styles.btnAcao} onClick={() => { setEditandoIdx(idx); setCartelaEditTemp(arr.map(l => [...l])); }}>Editar</button>
+                    <button style={{ ...styles.btnAcao, background: '#fee2e2', color: '#ef4444' }} onClick={() => {
+                      setSalvos(prev => prev.filter((_, i) => i !== idx));
+                    }}>Excluir</button>
+                  </>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {relatorioGeralAberto && relatorioAuditoriaGeral && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 10000,
+          background: 'rgba(15, 23, 42, 0.75)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 16
+        }}>
+          <div style={{
+            background: '#ffffff',
+            border: '1px solid #cbd5e1',
+            borderRadius: 16,
+            width: '100%',
+            maxWidth: 720,
+            maxHeight: '90vh',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.3)',
+            overflow: 'hidden'
+          }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '14px 20px',
+              background: '#f8fafc',
+              borderBottom: '1px solid #e2e8f0'
+            }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: 16, fontWeight: 900, color: '#0f172a' }}>
+                  🏆 RELATÓRIO GERAL DE AUDITORIA DA BANCADA
+                </h2>
+                <span style={{ fontSize: 11, color: '#64748b' }}>
+                  Varredura de {relatorioAuditoriaGeral.totalGabaritos} gabaritos contra {relatorioAuditoriaGeral.totalCartelas} cartelas fixas
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRelatorioGeralAberto(false)}
+                style={{
+                  background: '#fee2e2',
+                  color: '#ef4444',
+                  border: 'none',
+                  borderRadius: 6,
+                  width: 28,
+                  height: 28,
+                  fontWeight: 900,
+                  cursor: 'pointer',
+                  fontSize: 13
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ padding: 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {relatorioAuditoriaGeral.campeao.acertos > 0 && (
+                <div style={{
+                  background: '#ecfdf5',
+                  border: '2px solid #34d399',
+                  borderRadius: 12,
+                  padding: '12px 16px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}>
+                  <div>
+                    <span style={{ fontSize: 11, fontWeight: 900, color: '#065f46', textTransform: 'uppercase' }}>
+                      🌟 Maior Pontuação da Rodada:
+                    </span>
+                    <div style={{ fontSize: 18, fontWeight: 900, color: '#047857' }}>
+                      {relatorioAuditoriaGeral.campeao.acertos} Pontos!
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right', fontSize: 12, fontWeight: 800, color: '#065f46' }}>
+                    Alcançado pelo <b>{relatorioAuditoriaGeral.campeao.gabaritoNome}</b><br />
+                    na <b>Cartela #{relatorioAuditoriaGeral.campeao.cartelaNumero}</b>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <span style={{ fontSize: 12, fontWeight: 900, color: '#334155', textTransform: 'uppercase', marginBottom: 8, display: 'block' }}>
+                  Distribuição de Prêmios e Acertos:
+                </span>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                  {[20, 19, 18, 17, 16, 15, 0, 14].map((pts) => {
+                    const qtd = relatorioAuditoriaGeral.faixasPontos[pts] || 0;
+                    const ehPremio = pts >= 15 || pts === 0;
+
+                    return (
+                      <div key={pts} style={{
+                        background: ehPremio && qtd > 0 ? '#f0fdf4' : '#f8fafc',
+                        border: ehPremio && qtd > 0 ? '1px solid #86efac' : '1px solid #e2e8f0',
+                        borderRadius: 8,
+                        padding: '8px 10px',
+                        textAlign: 'center'
+                      }}>
+                        <span style={{ fontSize: 11, fontWeight: 800, color: pts === 0 ? '#b45309' : ehPremio ? '#15803d' : '#64748b' }}>
+                          {pts === 0 ? '🎯 0 Pontos' : pts === 14 ? '⚠️ 14 Pontos' : `🏆 ${pts} Pontos`}
+                        </span>
+                        <div style={{ fontSize: 18, fontWeight: 900, color: ehPremio && qtd > 0 ? '#166534' : '#334155', marginTop: 2 }}>
+                          {qtd}x
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <span style={{ fontSize: 12, fontWeight: 900, color: '#334155', textTransform: 'uppercase', marginBottom: 8, display: 'block' }}>
+                  Melhor Desempenho por Cartela Fixa:
+                </span>
+                <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: 8 }}>
+                  {relatorioAuditoriaGeral.detalhePorCartela.map((item) => (
+                    <div key={item.numeroCartela} style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      padding: '6px 12px',
+                      borderBottom: '1px solid #f1f5f9',
+                      fontSize: 11,
+                      background: item.melhorAcerto >= 15 ? '#f0fdf4' : '#ffffff'
+                    }}>
+                      <span style={{ fontWeight: 800, color: '#1e293b' }}>
+                        Cartela #{item.numeroCartela}
+                      </span>
+                      <span style={{ color: item.melhorAcerto >= 15 ? '#15803d' : '#64748b', fontWeight: 800 }}>
+                        Melhor: <b>{item.melhorAcerto} pts</b> ({item.melhorGabarito})
+                      </span>
+                    </div>
                   ))}
                 </div>
               </div>
-            ))}
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
 
 const styles = {
-  container: { backgroundColor: '#f1f5f9', minHeight: '100vh', padding: '20px', fontFamily: 'system-ui' },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' },
-  btnDeleteAll: { backgroundColor: '#fee2e2', color: '#b91c1c', border: 'none', padding: '8px 15px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' },
-  mainLayout: { display: 'flex', gap: '20px' },
-  sidebar: { width: '300px', display: 'flex', flexDirection: 'column', gap: '15px' },
-  card: { backgroundColor: 'white', padding: '15px', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' },
-  cardTitle: { fontSize: '10px', color: '#64748b', fontWeight: '800', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' },
-  volanteGrid: { display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px', marginBottom: '10px' },
-  volanteDezena: { height: '32px', borderRadius: '4px', border: '1px solid', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' },
-  btnSalvarVolante: { width: '100%', padding: '10px', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold' },
-  statsScroll: { maxHeight: '200px', overflowY: 'auto', paddingRight: '5px' },
-  statRow: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' },
-  statNum: { fontSize: '11px', fontWeight: 'bold', width: '15px', color: '#1e293b' },
-  barBg: { flex: 1, backgroundColor: '#f1f5f9', height: '8px', borderRadius: '4px', overflow: 'hidden' },
-  barFill: { backgroundColor: '#3b82f6', height: '100%', borderRadius: '4px' },
-  statCount: { fontSize: '10px', width: '25px', textAlign: 'right', color: '#64748b' },
-  inputResultado: { width: '100%', padding: '10px', textAlign: 'center', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '16px' },
-  financeiroRow: { display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px' },
-  saldoBox: { marginTop: '10px', textAlign: 'center', borderTop: '1px solid #e2e8f0', paddingTop: '10px' },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '8px', maxHeight: '80vh', overflowY: 'auto' },
-  jogoBox: { padding: '8px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white' },
-  boxHeader: { display: 'flex', justifyContent: 'space-between', fontSize: '9px', marginBottom: '4px' },
-  dezenasRow: { display: 'flex', flexWrap: 'wrap', gap: '2px' },
-  dezena: { width: '18px', height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '3px', fontSize: '8px', fontWeight: 'bold' },
-  btnDeletarUm: { background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '10px' }
+  container: { background: "#f1f5f9", minHeight: "100vh", fontFamily: "sans-serif", position: 'relative' as const },
+  title: { fontSize: 22, fontWeight: 900, color: "#0f172a", marginBottom: 12, textAlign: 'center' as const },
+  topoAcoesBar: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, maxWidth: 1300, margin: '0 auto 20px auto', flexWrap: 'wrap' as const, gap: 10 },
+  btnVoltar: { background: '#e0e7ef', border: 'none', borderRadius: 8, padding: '10px 15px', fontWeight: 700, cursor: 'pointer', color: '#334155' },
+  btnAcaoTopo: {
+    borderRadius: 8,
+    padding: '10px 14px',
+    fontWeight: 800,
+    fontSize: 13,
+    cursor: 'pointer',
+    boxShadow: '0 2px 5px rgba(0,0,0,0.06)',
+    transition: 'all 0.15s ease'
+  },
+  btnRaioX: {
+    color: '#ffffff',
+    border: '1px solid #0369a1',
+    borderRadius: 8,
+    padding: '10px 16px',
+    fontWeight: 800,
+    fontSize: 13,
+    cursor: 'pointer',
+    boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)',
+  },
+  btnDestravarTodas: {
+    background: '#fee2e2',
+    color: '#b91c1c',
+    border: '1px solid #fca5a5',
+    borderRadius: 6,
+    padding: '3px 8px',
+    fontSize: 10,
+    fontWeight: 800,
+    cursor: 'pointer'
+  },
+  btnAutoTrava: {
+    background: '#f1f5f9',
+    color: '#334155',
+    border: '1px solid #cbd5e1',
+    borderRadius: 6,
+    padding: '3px 8px',
+    fontSize: 10,
+    fontWeight: 800,
+    cursor: 'pointer'
+  },
+  btnAdicionarCartelaFixa: {
+    background: '#dbeafe',
+    color: '#1d4ed8',
+    border: '1px solid #93c5fd',
+    borderRadius: 8,
+    padding: '10px 16px',
+    fontWeight: 800,
+    fontSize: 13,
+    cursor: 'pointer',
+    boxShadow: '0 2px 5px rgba(0,0,0,0.08)',
+  },
+  btnNovoGabarito: {
+    background: '#fef08a',
+    color: '#854d0e',
+    border: '1px solid #eab308',
+    borderRadius: 8,
+    padding: '10px 16px',
+    fontWeight: 800,
+    fontSize: 13,
+    cursor: 'pointer',
+    boxShadow: '0 2px 5px rgba(0,0,0,0.08)',
+  },
+  btnTelemetria: {
+    background: '#090d16',
+    color: '#38bdf8',
+    border: '1px solid #0284c7',
+    borderRadius: 8,
+    padding: '10px 16px',
+    fontWeight: 800,
+    fontSize: 13,
+    cursor: 'pointer',
+    boxShadow: '0 2px 8px rgba(2, 132, 199, 0.35)',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+  },
+  barraAutoOrganizacao: {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap' as const,
+    maxWidth: 1300,
+    margin: '0 auto 24px auto',
+    padding: '8px 14px',
+    background: '#ffffff',
+    borderRadius: 12,
+    border: '1px solid #e2e8f0',
+    boxShadow: '0 2px 6px rgba(0,0,0,0.04)'
+  },
+  btnFiltroAuto: {
+    background: '#ffffff',
+    color: '#334155',
+    border: '1px solid #cbd5e1',
+    borderRadius: 6,
+    padding: '5px 10px',
+    fontSize: 11,
+    fontWeight: 800,
+    cursor: 'pointer',
+    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+    transition: 'all 0.15s ease'
+  },
+  cardPrincipal: { 
+    background: "#fff", 
+    padding: 16, 
+    borderRadius: 16, 
+    boxShadow: "0 4px 6px -1px rgba(0,0,0,0.08)", 
+    border: "1px solid #e2e8f0", 
+    transition: 'all 0.15s ease',
+    userSelect: 'none' as const
+  },
+  btnMover: {
+    background: '#f1f5f9',
+    border: '1px solid #cbd5e1',
+    borderRadius: 4,
+    padding: '2px 4px',
+    fontSize: 9,
+    fontWeight: 800,
+    cursor: 'pointer',
+    color: '#475569'
+  },
+  cardTitle: { fontSize: 12, fontWeight: 800, color: "#64748b", margin: 0, textTransform: 'uppercase' as const },
+  gradeSelecao: { display: 'flex', flexDirection: 'column' as const, gap: 4, alignItems: 'center' },
+  celulaCartela: { width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 6, fontWeight: 700, fontSize: 13 },
+  celulaMini: { width: 20, height: 20, fontSize: 9, fontWeight: 700, border: '1px solid #e2e8f0', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  btnSalvar: { width: '100%', padding: "8px", border: "none", borderRadius: 8, color: "white", fontWeight: "bold", marginTop: 8, cursor: 'pointer', fontSize: 12 },
+  gridSalvos: { display: "flex", flexWrap: "wrap" as const, gap: 12, justifyContent: 'center' },
+  jogoSalvoGrade: { background: "#fff", borderRadius: 12, padding: 10, border: "1px solid #e2e8f0", display: 'flex', flexDirection: 'column' as const, alignItems: 'center' },
+  badgeNumero: { background: "#f1f5f9", fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 10, marginBottom: 5 },
+  btnAcao: { flex: 1, padding: '5px', fontSize: 10, fontWeight: 700, border: 'none', borderRadius: 4, cursor: 'pointer', background: '#f1f5f9' },
+  gabaritoContainer: { position: 'fixed' as const, zIndex: 9999, background: 'transparent', borderRadius: 12, padding: '8px 8px', display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: 6, boxShadow: '0 8px 24px rgba(0,0,0,0.2)', pointerEvents: 'none' as const,maxWidth: 240,width: 'auto' },
+  alcaGabarito: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', cursor: 'grab', background: '#ffffff', padding: '4px 8px', borderRadius: 6, border: '1px solid #cbd5e1', userSelect: 'none' as const, pointerEvents: 'auto' as const, boxShadow: '0 2px 5px rgba(0,0,0,0.1)' },
+  badgeContadorGabarito: { fontSize: 11, fontWeight: 900, background: '#f1f5f9', padding: '1px 6px', borderRadius: 8, color: '#334155' },
+  btnAcaoMini: { background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 4, width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 900, cursor: 'pointer', padding: 0, color: '#475569' },
+
+  alertaTrocaAtiva: {
+    position: 'fixed' as const,
+    top: 15,
+    left: '50%',
+    transform: 'translateX(-50%)',
+    zIndex: 10000,
+    background: '#1e293b',
+    color: '#ffffff',
+    padding: '10px 20px',
+    borderRadius: 30,
+    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.4)',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 16,
+    fontSize: 13,
+    fontWeight: 600,
+    border: '2px solid #3b82f6'
+  },
+  btnCancelarTroca: {
+    background: '#ef4444',
+    color: '#ffffff',
+    border: 'none',
+    borderRadius: 20,
+    padding: '4px 10px',
+    fontSize: 11,
+    fontWeight: 800,
+    cursor: 'pointer'
+  },
+
+  janelaFlutuanteRaioX: {
+    position: 'fixed' as const,
+    zIndex: 9998,
+    background: '#ffffff',
+    borderRadius: 14,
+    boxShadow: '0 12px 30px rgba(0,0,0,0.2)',
+    border: '2px solid #0284c7',
+    display: 'flex',
+    flexDirection: 'column' as const,
+    overflow: 'hidden',
+  },
+  alcaJanelaFlutuante: {
+    background: '#f0f9ff',
+    padding: '8px 12px',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    cursor: 'grab',
+    borderBottom: '1px solid #bae6fd',
+    userSelect: 'none' as const,
+  },
+  btnFecharFlutuante: {
+    background: '#fee2e2',
+    color: '#ef4444',
+    border: 'none',
+    width: 22,
+    height: 22,
+    borderRadius: 4,
+    fontWeight: 900,
+    cursor: 'pointer',
+    fontSize: 11,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  corpoFlutuante: {
+    padding: 12,
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 10,
+    maxHeight: '75vh',
+    overflowY: 'auto' as const
+  },
+  gridMapaCalorFlutuante: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(10, 1fr)',
+    gap: 3,
+    background: '#f8fafc',
+    padding: 8,
+    borderRadius: 8,
+    border: '1px solid #e2e8f0'
+  },
+  celulaMapaFlutuante: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '3px 1px',
+    borderRadius: 4,
+    border: '1px solid transparent',
+  }
 };
