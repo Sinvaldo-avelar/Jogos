@@ -46,15 +46,42 @@ function CartaoMontarJogo({
   cartelaSelecionadaParaTroca,
   iniciarTroca,
   travaGeralAtiva,
-  celulaCartelaStyle 
+  celulaCartelaStyle,
+  gabaritos,
+  CORES_GABARITO,
+  gabaritoAtivoParaComparacaoId,
+  setGabaritoAtivoParaComparacaoId
 }: any) {
   const estaTravada = travaGeralAtiva || cartela.bloqueada;
   const estaAguardandoTroca = cartelaSelecionadaParaTroca === indice;
+  const [menuGabaritosAberto, setMenuGabaritosAberto] = useState(false);
 
   const totalEscolhidos = cartela.selecionadas.reduce(
     (acc: number, linha: number[]) => acc + linha.filter(v => v === 1 || v === 2).length,
     0
   );
+
+  const gabaritosComPontos = (gabaritos || []).map((gab: any, idx: number) => {
+    const cor = CORES_GABARITO[gab.corIdx];
+    let acertos = 0;
+    for (let l = 0; l < LINHAS_QTD; l++) {
+      for (let c = 0; c < COLUNAS_QTD; c++) {
+        const naCartela = cartela.selecionadas[l][c] === 1 || cartela.selecionadas[l][c] === 2;
+        const noGabarito = gab.valores[l][c] === 1;
+        if (naCartela && noGabarito) acertos++;
+      }
+    }
+    return {
+      id: gab.id,
+      nome: `G${idx + 1}`,
+      cor,
+      acertos,
+      ehPremiado: acertos >= 15 || acertos === 0,
+      valores: gab.valores
+    };
+  });
+  const premiados = gabaritosComPontos.filter((g: any) => g.ehPremiado);
+  const melhorGabarito = [...gabaritosComPontos].sort((a, b) => b.acertos - a.acertos)[0];
 
   return (
     <div 
@@ -63,13 +90,11 @@ function CartaoMontarJogo({
         border: estaAguardandoTroca 
           ? '2px solid #2563eb' 
           : estaTravada 
-            ? '1px solid #fca5a5' 
+            ? '1px solid #cbd5e1' 
             : '1px solid #e2e8f0',
         background: estaAguardandoTroca 
-          ? '#eff6ff' 
-          : estaTravada 
-            ? '#fffbfa' 
-            : '#fff',
+          ? '#eff6ff'
+          : '#ffffff',
         boxShadow: estaAguardandoTroca 
           ? '0 0 15px rgba(37, 99, 235, 0.35)' 
           : '0 4px 6px -1px rgba(0,0,0,0.08)',
@@ -154,6 +179,89 @@ function CartaoMontarJogo({
         Escolhidos: {totalEscolhidos}
       </div>
 
+      {gabaritosComPontos.length > 0 && (
+        <div style={{ width: '100%', marginBottom: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            background: premiados.length > 0 ? '#ecfdf5' : '#f8fafc',
+            border: premiados.length > 0 ? '1px solid #6ee7b7' : '1px solid #e2e8f0',
+            borderRadius: 6,
+            padding: '3px 6px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 800, color: premiados.length > 0 ? '#047857' : '#475569' }}>
+              <span>{premiados.length > 0 ? `🏆 Premiadas (${premiados.length})` : 'Sem 15+ pts'}</span>
+              {melhorGabarito && (
+                <span style={{ fontSize: 9, opacity: 0.85 }}>Top: <b>{melhorGabarito.nome} ({melhorGabarito.acertos}p)</b></span>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setMenuGabaritosAberto(prev => !prev)}
+              style={{
+                background: premiados.length > 0 ? '#fef3c7' : '#f1f5f9',
+                border: premiados.length > 0 ? '1px solid #f59e0b' : '1px solid #cbd5e1',
+                borderRadius: 4,
+                padding: '2px 6px',
+                fontSize: 9,
+                fontWeight: 800,
+                cursor: 'pointer',
+                color: premiados.length > 0 ? '#b45309' : '#475569'
+              }}
+            >
+              {menuGabaritosAberto ? '▲ Fechar' : `🏆 ${premiados.length || gabaritosComPontos.length}`}
+            </button>
+          </div>
+
+          {menuGabaritosAberto && (
+            <div style={{
+              background: '#ffffff',
+              border: '1px solid #cbd5e1',
+              borderRadius: 6,
+              padding: 6,
+              maxHeight: 95,
+              overflowY: 'auto',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 3,
+              boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'
+            }}>
+              <div style={{ fontSize: 9, fontWeight: 900, color: '#334155', borderBottom: '1px solid #f1f5f9', paddingBottom: 2 }}>
+                Clique no gabarito para iluminar na cartela:
+              </div>
+
+              {[...gabaritosComPontos].sort((a, b) => b.acertos - a.acertos).map((g: any) => {
+                const estaAtivo = gabaritoAtivoParaComparacaoId === g.id;
+                return (
+                  <div
+                    key={g.id}
+                    onClick={() => setGabaritoAtivoParaComparacaoId(estaAtivo ? null : g.id)}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '2px 6px',
+                      borderRadius: 4,
+                      fontSize: 9,
+                      cursor: 'pointer',
+                      background: estaAtivo ? g.cor.solido : g.ehPremiado ? '#dcfce7' : '#f8fafc',
+                      color: estaAtivo ? '#ffffff' : g.ehPremiado ? '#15803d' : '#475569',
+                      border: estaAtivo ? `1px solid ${g.cor.borda}` : '1px solid transparent',
+                      fontWeight: g.ehPremiado ? 900 : 600
+                    }}
+                  >
+                    <span>Gabarito {g.nome}</span>
+                    <span><b>{g.acertos} pts</b> {g.ehPremiado ? '★' : ''} {estaAtivo ? ' (Ativo)' : ''}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       <div style={{
         ...styles.gradeSelecao,
         pointerEvents: estaTravada ? 'none' : 'auto',
@@ -165,18 +273,43 @@ function CartaoMontarJogo({
             {NUMS.map(num => {
               const estado = cartela.selecionadas[linhaIdx][num - 1];
               const numero = linhaIdx * COLUNAS_QTD + num;
-              let background = "#fff";
+              const gabAtivo = (gabaritos || []).find((g: any) => g.id === gabaritoAtivoParaComparacaoId);
+              const corAtiva = gabAtivo ? CORES_GABARITO[gabAtivo.corIdx] : null;
+              const acertouNoGabarito = gabAtivo ? gabAtivo.valores[linhaIdx][num - 1] === 1 : false;
+              let background = "#ffffff";
               let color = "#334155";
               let border = "1px solid #cbd5e1";
+              let boxShadow = 'none';
+              let opacity = 1;
 
               if (estado === 1) {
                 background = "#3b82f6";
-                color = "#fff";
+                color = "#ffffff";
                 border = "2px solid #2563eb";
               } else if (estado === 2) {
                 background = "#ef4444";
-                color = "#fff";
+                color = "#ffffff";
                 border = "2px solid #b91c1c";
+              }
+
+              if (gabaritoAtivoParaComparacaoId !== null) {
+                if (estado === 1 || estado === 2) {
+                  if (acertouNoGabarito) {
+                    background = corAtiva ? corAtiva.solido : '#16a34a';
+                    border = `2px solid ${corAtiva ? corAtiva.borda : '#15803d'}`;
+                    color = '#ffffff';
+                    boxShadow = '0 0 8px rgba(15, 23, 42, 0.35)';
+                  } else {
+                    background = 'transparent';
+                    border = '1px dashed #94a3b8';
+                    color = '#64748b';
+                    opacity = 1;
+                  }
+                } else {
+                  background = '#ffffff';
+                  color = '#e2e8f0';
+                  border = '1px solid #f1f5f9';
+                }
               }
 
               return (
@@ -188,6 +321,8 @@ function CartaoMontarJogo({
                     background,
                     color,
                     border,
+                    boxShadow,
+                    opacity,
                     cursor: estaTravada ? "default" : "pointer",
                   }}
                   onClick={() => alternarNumero(cartela.id, linhaIdx, num)}
@@ -223,6 +358,7 @@ export default function Gerador() {
   const [cartelaEditTemp, setCartelaEditTemp] = useState<number[][] | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [gabaritos, setGabaritos] = useState<Gabarito5x20[]>([]);
+  const [gabaritoAtivoParaComparacaoId, setGabaritoAtivoParaComparacaoId] = useState<number | null>(null);
   const [travaGeral, setTravaGeral] = useState(false);
   const [cartelasFixas, setCartelasFixas] = useState<CartelaFixa5x20Item[]>([]);
 
@@ -1422,6 +1558,10 @@ export default function Gerador() {
             iniciarTroca={iniciarOuExecutarTroca}
             travaGeralAtiva={travaGeral}
             celulaCartelaStyle={celulaEstilo}
+            gabaritos={gabaritos}
+            CORES_GABARITO={CORES_GABARITO}
+            gabaritoAtivoParaComparacaoId={gabaritoAtivoParaComparacaoId}
+            setGabaritoAtivoParaComparacaoId={setGabaritoAtivoParaComparacaoId}
           />
         ))}
       </div>
