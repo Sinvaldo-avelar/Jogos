@@ -25,65 +25,56 @@ interface GabaritoItem {
   corIdx: number;
 }
 
+// Estados possíveis para a seleção por clique
+type SelecaoTroca =
+  | { modo: 'CARTELA'; cartelaIdx: number }
+  | { modo: 'METADE'; cartelaIdx: number; metade: 'cima' | 'baixo' }
+  | null;
+
 function formatarNumero(indice: number) {
   return indice === 99 ? '00' : String(indice + 1).padStart(2, '0');
 }
 
-// Sub-grade de 50 dezenas (arrastável individualmente)
+// Linha de 50 dezenas com botão de seleção para troca
 function BlocoMetadeNumeros({
   valores,
   inicioOffset,
   tipo,
+  selecionadoParaTroca,
+  aoClicarMetade,
   aoAlternar,
-  onDragStartMetade,
-  onDropMetade,
 }: {
   valores: number[];
   inicioOffset: number;
   tipo: 'cima' | 'baixo';
+  selecionadoParaTroca: boolean;
+  aoClicarMetade: () => void;
   aoAlternar: (indiceReal: number) => void;
-  onDragStartMetade: (e: React.DragEvent, tipo: 'cima' | 'baixo') => void;
-  onDropMetade: (e: React.DragEvent, tipo: 'cima' | 'baixo') => void;
 }) {
-  const [arrastandoSobre, setArrastandoSobre] = useState(false);
-
   return (
     <div
-      onDragOver={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setArrastandoSobre(true);
-      }}
-      onDragLeave={(e) => {
-        e.stopPropagation();
-        setArrastandoSobre(false);
-      }}
-      onDrop={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setArrastandoSobre(false);
-        onDropMetade(e, tipo);
-      }}
       style={{
         ...styles.blocoMetade,
-        outline: arrastandoSobre ? '2px dashed #2563eb' : 'none',
-        background: arrastandoSobre ? '#eff6ff' : 'transparent',
+        outline: selecionadoParaTroca ? '2px solid #2563eb' : 'none',
+        background: selecionadoParaTroca ? '#eff6ff' : 'transparent',
       }}
     >
-      {/* Alça de Arraste da Metade (Topo 01-50 ou Base 51-00) */}
-      <div
-        draggable
-        onDragStart={(e) => {
-          e.stopPropagation();
-          onDragStartMetade(e, tipo);
+      {/* Botão de Clique para Selecionar e Trocar a Metade */}
+      <button
+        type="button"
+        onClick={aoClicarMetade}
+        style={{
+          ...styles.btnMetade,
+          background: selecionadoParaTroca ? '#2563eb' : '#f1f5f9',
+          color: selecionadoParaTroca ? '#ffffff' : '#475569',
+          borderColor: selecionadoParaTroca ? '#1d4ed8' : '#cbd5e1',
         }}
-        style={styles.alcaMetade}
-        title={`Clique e arraste para trocar apenas a metade (${tipo === 'cima' ? '01-50' : '51-00'}) com outra cartela`}
+        title="Clique para selecionar e depois clique na metade de outra cartela para trocar"
       >
-        <span style={{ fontSize: 9, fontWeight: 800, color: '#64748b' }}>
+        <span style={{ fontSize: 9, fontWeight: 800 }}>
           {tipo === 'cima' ? '▲ 01-50' : '▼ 51-00'}
         </span>
-      </div>
+      </button>
 
       <div style={styles.grid50}>
         {valores.map((estado, idxRelativo) => {
@@ -118,6 +109,9 @@ export default function Estrategico() {
   const [carregado, setCarregado] = useState(false);
   const [cartelas, setCartelas] = useState<number[][]>([]);
   const [gabaritos, setGabaritos] = useState<GabaritoItem[]>([]);
+  
+  // Controle da seleção ativa para troca por clique
+  const [selecaoTroca, setSelecaoTroca] = useState<SelecaoTroca>(null);
 
   // Carregar dados locais
   useEffect(() => {
@@ -157,7 +151,18 @@ export default function Estrategico() {
     }
   }, [gabaritos, carregado]);
 
-  // Gestão de arrasto da cartela-gabarito
+  // Cancelar seleção com tecla ESC
+  useEffect(() => {
+    const tratarKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setSelecaoTroca(null);
+      }
+    };
+    window.addEventListener('keydown', tratarKeyDown);
+    return () => window.removeEventListener('keydown', tratarKeyDown);
+  }, []);
+
+  // Gestão de arrasto da cartela-gabarito flutuante
   const arrastoRef = useRef<{
     id: number | null;
     startX: number;
@@ -280,45 +285,71 @@ export default function Estrategico() {
     }
   };
 
-  // --- REORDENAÇÃO COMPLETA DE CARTELA ---
-  const moverCartela = (deIndex: number, paraIndex: number) => {
-    if (paraIndex < 0 || paraIndex >= cartelas.length || deIndex === paraIndex) return;
-    setCartelas((anteriores) => {
-      const novaLista = [...anteriores];
-      const [removida] = novaLista.splice(deIndex, 1);
-      novaLista.splice(paraIndex, 0, removida);
-      return novaLista;
-    });
-  };
+  // --- LÓGICA DE TROCA POR CLIQUE ---
 
-  // --- TROCA DE METADES (01-50 OU 51-00) ---
-  const trocarMetadesCartelas = (
-    cartelaOrigem: number,
-    tipoOrigem: 'cima' | 'baixo',
-    cartelaDestino: number,
-    tipoDestino: 'cima' | 'baixo'
-  ) => {
-    if (cartelaOrigem === cartelaDestino && tipoOrigem === tipoDestino) return;
+  // 1. Trocar cartela inteira
+  const selecionarOuTrocarCartelaInteira = (idx: number) => {
+    if (!selecaoTroca) {
+      setSelecaoTroca({ modo: 'CARTELA', cartelaIdx: idx });
+      return;
+    }
 
-    setCartelas((anteriores) => {
-      const novaLista = anteriores.map((c) => [...c]);
-      const inicioOrigem = tipoOrigem === 'cima' ? 0 : 50;
-      const fimOrigem = tipoOrigem === 'cima' ? 50 : 100;
-
-      const inicioDestino = tipoDestino === 'cima' ? 0 : 50;
-      const fimDestino = tipoDestino === 'cima' ? 50 : 100;
-
-      const parteOrigem = novaLista[cartelaOrigem].slice(inicioOrigem, fimOrigem);
-      const parteDestino = novaLista[cartelaDestino].slice(inicioDestino, fimDestino);
-
-      // Aplica a troca
-      for (let i = 0; i < 50; i++) {
-        novaLista[cartelaDestino][inicioDestino + i] = parteOrigem[i];
-        novaLista[cartelaOrigem][inicioOrigem + i] = parteDestino[i];
+    if (selecaoTroca.modo === 'CARTELA') {
+      if (selecaoTroca.cartelaIdx === idx) {
+        setSelecaoTroca(null); // Cancelar se clicar na mesma
+        return;
       }
 
-      return novaLista;
-    });
+      // Executa a troca direta entre as duas posições
+      setCartelas((anteriores) => {
+        const nova = [...anteriores];
+        const temp = nova[selecaoTroca.cartelaIdx];
+        nova[selecaoTroca.cartelaIdx] = nova[idx];
+        nova[idx] = temp;
+        return nova;
+      });
+      setSelecaoTroca(null);
+    } else {
+      // Se estava com metade selecionada, troca para o modo cartela
+      setSelecaoTroca({ modo: 'CARTELA', cartelaIdx: idx });
+    }
+  };
+
+  // 2. Trocar metade de 50 dezenas (01-50 ou 51-00)
+  const selecionarOuTrocarMetade = (cartelaIdx: number, metade: 'cima' | 'baixo') => {
+    if (!selecaoTroca) {
+      setSelecaoTroca({ modo: 'METADE', cartelaIdx, metade });
+      return;
+    }
+
+    if (selecaoTroca.modo === 'METADE') {
+      if (selecaoTroca.cartelaIdx === cartelaIdx && selecaoTroca.metade === metade) {
+        setSelecaoTroca(null); // Cancelar se clicar na mesma
+        return;
+      }
+
+      // Executa a troca apenas das metades selecionadas
+      setCartelas((anteriores) => {
+        const nova = anteriores.map((c) => [...c]);
+
+        const inicioOrigem = selecaoTroca.metade === 'cima' ? 0 : 50;
+        const inicioDestino = metade === 'cima' ? 0 : 50;
+
+        const dadosOrigem = nova[selecaoTroca.cartelaIdx].slice(inicioOrigem, inicioOrigem + 50);
+        const dadosDestino = nova[cartelaIdx].slice(inicioDestino, inicioDestino + 50);
+
+        for (let i = 0; i < 50; i++) {
+          nova[cartelaIdx][inicioDestino + i] = dadosOrigem[i];
+          nova[selecaoTroca.cartelaIdx][inicioOrigem + i] = dadosDestino[i];
+        }
+
+        return nova;
+      });
+      setSelecaoTroca(null);
+    } else {
+      // Se estava com cartela inteira, troca para metade
+      setSelecaoTroca({ modo: 'METADE', cartelaIdx, metade });
+    }
   };
 
   if (!carregado) return null;
@@ -343,7 +374,7 @@ export default function Estrategico() {
             <div
               onMouseDown={(e) => iniciarArrastoGabarito(e, gab)}
               style={styles.alcaGabarito}
-              title="Clique e arraste para movimentar este gabarito transparente sobre qualquer cartela"
+              title="Clique e arraste para movimentar este gabarito"
             >
               <span style={{ fontSize: 10, fontWeight: 900, color: cor.borda }}>G{idx + 1}</span>
               <span style={styles.badgeContadorGabarito}>{marcadosNoGabarito}</span>
@@ -396,16 +427,41 @@ export default function Estrategico() {
       })}
 
       <header style={styles.topo}>
-        <button
-          type="button"
-          style={styles.btnVoltar}
-          onClick={() => {
-            window.location.href = '/';
-          }}
-        >
-          ← Voltar
-        </button>
-        <span style={styles.contadorGeral}>Total de Cartelas: {cartelas.length}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button
+            type="button"
+            style={styles.btnVoltar}
+            onClick={() => {
+              window.location.href = '/';
+            }}
+          >
+            ← Voltar
+          </button>
+          <span style={styles.contadorGeral}>Total de Cartelas: {cartelas.length}</span>
+        </div>
+
+        {/* Alerta flutuante de modo de troca ativo */}
+        {selecaoTroca && (
+          <div style={styles.barraTrocaAtiva}>
+            <span>
+              {selecaoTroca.modo === 'CARTELA' ? (
+                <>Cartela <b>#{String(selecaoTroca.cartelaIdx + 1).padStart(2, '0')}</b> selecionada. Clique em outra cartela para trocar de lugar!</>
+              ) : (
+                <>
+                  Metade <b>{selecaoTroca.metade === 'cima' ? '▲ 01-50' : '▼ 51-00'}</b> da Cartela <b>#{String(selecaoTroca.cartelaIdx + 1).padStart(2, '0')}</b> selecionada. Clique em outra metade para trocar!
+                </>
+              )}
+            </span>
+            <button
+              type="button"
+              onClick={() => setSelecaoTroca(null)}
+              style={styles.btnCancelarTroca}
+            >
+              Cancelar (ESC)
+            </button>
+          </div>
+        )}
+
         <div style={styles.topoAcoes}>
           <button
             type="button"
@@ -436,37 +492,34 @@ export default function Estrategico() {
         <div style={styles.listaCartelas}>
           {cartelas.map((cartela, idx) => {
             const totalMarcados = cartela.filter((estado) => estado > 0).length;
+            const isCartelaSelecionada =
+              selecaoTroca?.modo === 'CARTELA' && selecaoTroca.cartelaIdx === idx;
 
             return (
               <div
                 key={idx}
-                style={styles.cartelaBox}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  const tipoArrasto = e.dataTransfer.getData('tipoArrasto');
-                  if (tipoArrasto === 'CARTELA_INTEIRA') {
-                    const deIndex = Number(e.dataTransfer.getData('cartelaIndex'));
-                    moverCartela(deIndex, idx);
-                  }
+                style={{
+                  ...styles.cartelaBox,
+                  border: isCartelaSelecionada ? '2px solid #f59e0b' : '1px solid #e2e8f0',
+                  boxShadow: isCartelaSelecionada ? '0 0 10px rgba(245, 158, 11, 0.3)' : styles.cartelaBox.boxShadow,
                 }}
               >
-                {/* Controles da Cartela Completa */}
+                {/* Bloco Lateral com botão de selecionar Cartela Inteira */}
                 <div style={styles.infoCartela}>
-                  <div
-                    draggable
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData('tipoArrasto', 'CARTELA_INTEIRA');
-                      e.dataTransfer.setData('cartelaIndex', String(idx));
+                  <button
+                    type="button"
+                    onClick={() => selecionarOuTrocarCartelaInteira(idx)}
+                    style={{
+                      ...styles.btnCartelaInteira,
+                      background: isCartelaSelecionada ? '#f59e0b' : '#f8fafc',
+                      color: isCartelaSelecionada ? '#ffffff' : '#334155',
+                      borderColor: isCartelaSelecionada ? '#d97706' : '#cbd5e1',
                     }}
-                    style={styles.alcaArrastoCartela}
-                    title="Arraste para mudar a posição desta cartela"
+                    title="Clique para selecionar e depois clique em outra cartela para trocar de lugar"
                   >
-                    ⋮⋮
-                  </div>
+                    #{String(idx + 1).padStart(2, '0')} ⇄
+                  </button>
 
-                  <span style={styles.badgeNumero}>#{String(idx + 1).padStart(2, '0')}</span>
-                  
                   <span
                     style={{
                       ...styles.badgeContador,
@@ -478,28 +531,6 @@ export default function Estrategico() {
                   >
                     {totalMarcados}
                   </span>
-
-                  {/* Botões Subir / Descer */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                    <button
-                      type="button"
-                      disabled={idx === 0}
-                      onClick={() => moverCartela(idx, idx - 1)}
-                      style={{ ...styles.btnSetinha, opacity: idx === 0 ? 0.3 : 1 }}
-                      title="Subir cartela"
-                    >
-                      ▲
-                    </button>
-                    <button
-                      type="button"
-                      disabled={idx === cartelas.length - 1}
-                      onClick={() => moverCartela(idx, idx + 1)}
-                      style={{ ...styles.btnSetinha, opacity: idx === cartelas.length - 1 ? 0.3 : 1 }}
-                      title="Descer cartela"
-                    >
-                      ▼
-                    </button>
-                  </div>
 
                   {totalMarcados > 0 && (
                     <button
@@ -513,46 +544,32 @@ export default function Estrategico() {
                   )}
                 </div>
 
-                {/* Grade dividida em duas metades interativas (01-50 e 51-00) */}
+                {/* Grade dividida em duas metades (01-50 e 51-00) com clique interativo */}
                 <div style={styles.gradeContainer}>
                   <BlocoMetadeNumeros
                     tipo="cima"
                     inicioOffset={0}
                     valores={cartela.slice(0, 50)}
+                    selecionadoParaTroca={
+                      selecaoTroca?.modo === 'METADE' &&
+                      selecaoTroca.cartelaIdx === idx &&
+                      selecaoTroca.metade === 'cima'
+                    }
+                    aoClicarMetade={() => selecionarOuTrocarMetade(idx, 'cima')}
                     aoAlternar={(numIdx) => alternarNumeroCartela(idx, numIdx)}
-                    onDragStartMetade={(e, tipo) => {
-                      e.dataTransfer.setData('tipoArrasto', 'METADE_CARTELA');
-                      e.dataTransfer.setData('cartelaIndex', String(idx));
-                      e.dataTransfer.setData('tipoMetade', tipo);
-                    }}
-                    onDropMetade={(e, tipoDestino) => {
-                      const tipoArrasto = e.dataTransfer.getData('tipoArrasto');
-                      if (tipoArrasto === 'METADE_CARTELA') {
-                        const deCartela = Number(e.dataTransfer.getData('cartelaIndex'));
-                        const tipoOrigem = e.dataTransfer.getData('tipoMetade') as 'cima' | 'baixo';
-                        trocarMetadesCartelas(deCartela, tipoOrigem, idx, tipoDestino);
-                      }
-                    }}
                   />
 
                   <BlocoMetadeNumeros
                     tipo="baixo"
                     inicioOffset={50}
                     valores={cartela.slice(50, 100)}
+                    selecionadoParaTroca={
+                      selecaoTroca?.modo === 'METADE' &&
+                      selecaoTroca.cartelaIdx === idx &&
+                      selecaoTroca.metade === 'baixo'
+                    }
+                    aoClicarMetade={() => selecionarOuTrocarMetade(idx, 'baixo')}
                     aoAlternar={(numIdx) => alternarNumeroCartela(idx, numIdx)}
-                    onDragStartMetade={(e, tipo) => {
-                      e.dataTransfer.setData('tipoArrasto', 'METADE_CARTELA');
-                      e.dataTransfer.setData('cartelaIndex', String(idx));
-                      e.dataTransfer.setData('tipoMetade', tipo);
-                    }}
-                    onDropMetade={(e, tipoDestino) => {
-                      const tipoArrasto = e.dataTransfer.getData('tipoArrasto');
-                      if (tipoArrasto === 'METADE_CARTELA') {
-                        const deCartela = Number(e.dataTransfer.getData('cartelaIndex'));
-                        const tipoOrigem = e.dataTransfer.getData('tipoMetade') as 'cima' | 'baixo';
-                        trocarMetadesCartelas(deCartela, tipoOrigem, idx, tipoDestino);
-                      }
-                    }}
                   />
                 </div>
               </div>
@@ -602,6 +619,28 @@ const styles = {
     fontSize: 14,
     color: '#475569',
   },
+  barraTrocaAtiva: {
+    background: '#fef3c7',
+    border: '1px solid #f59e0b',
+    borderRadius: 6,
+    padding: '4px 12px',
+    fontSize: 12,
+    color: '#92400e',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    animation: 'pulse 2s infinite',
+  },
+  btnCancelarTroca: {
+    background: '#ffffff',
+    border: '1px solid #d97706',
+    borderRadius: 4,
+    fontSize: 11,
+    fontWeight: 800,
+    padding: '2px 6px',
+    cursor: 'pointer',
+    color: '#b45309',
+  },
   topoAcoes: {
     display: 'flex',
     gap: 8,
@@ -639,29 +678,23 @@ const styles = {
     alignItems: 'center',
     gap: 8,
     boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+    transition: 'border 0.2s, box-shadow 0.2s',
   },
   infoCartela: {
     display: 'flex',
     alignItems: 'center',
     gap: 6,
-    minWidth: 105,
+    minWidth: 95,
     flexShrink: 0,
   },
-  alcaArrastoCartela: {
-    cursor: 'grab',
-    fontSize: 14,
-    fontWeight: 900,
-    color: '#94a3b8',
-    userSelect: 'none' as const,
-    padding: '2px 4px',
-    borderRadius: 4,
-    background: '#f8fafc',
-    border: '1px solid #e2e8f0',
-  },
-  badgeNumero: {
+  btnCartelaInteira: {
+    cursor: 'pointer',
     fontSize: 12,
     fontWeight: 900,
-    color: '#475569',
+    padding: '3px 6px',
+    borderRadius: 6,
+    border: '1px solid #cbd5e1',
+    transition: 'all 0.15s ease',
   },
   badgeContador: {
     fontSize: 11,
@@ -672,16 +705,6 @@ const styles = {
     borderStyle: 'solid',
     minWidth: 24,
     textAlign: 'center' as const,
-  },
-  btnSetinha: {
-    background: '#f1f5f9',
-    border: '1px solid #cbd5e1',
-    borderRadius: 3,
-    fontSize: 8,
-    cursor: 'pointer',
-    padding: '1px 3px',
-    lineHeight: 1,
-    color: '#475569',
   },
   btnLimparCartela: {
     background: 'transparent',
@@ -706,18 +729,18 @@ const styles = {
     gap: 6,
     padding: '2px 4px',
     borderRadius: 6,
-    transition: 'background 0.2s',
+    transition: 'background 0.2s, outline 0.2s',
   },
-  alcaMetade: {
-    cursor: 'grab',
+  btnMetade: {
+    cursor: 'pointer',
     userSelect: 'none' as const,
-    background: '#f1f5f9',
-    border: '1px solid #e2e8f0',
+    border: '1px solid #cbd5e1',
     borderRadius: 4,
     padding: '2px 4px',
-    minWidth: 50,
+    minWidth: 54,
     textAlign: 'center' as const,
     flexShrink: 0,
+    transition: 'all 0.15s ease',
   },
   grid50: {
     display: 'grid',
@@ -766,7 +789,7 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     gap: 6,
-    minWidth: 105,
+    minWidth: 95,
     cursor: 'grab',
     background: '#ffffff',
     padding: '3px 6px',
