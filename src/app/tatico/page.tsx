@@ -882,11 +882,6 @@ export default function Gerador() {
     }));
   };
 
-  const faixasMarcadas = [...faixasCandidatasTopo, ...faixasCandidatasBase];
-  const poolCorte = faixasMarcadas.length > 0
-    ? Array.from(new Set(faixasMarcadas)).sort((a, b) => a - b)
-    : Array.from({ length: 20 }, (_, i) => i);
-
   const exportarTopParaGabarito = () => {
     const shuffle = <T,>(arr: T[]): T[] => {
       const c = [...arr];
@@ -897,41 +892,88 @@ export default function Gerador() {
       return c;
     };
 
+    // 1. Identificar as colunas/faixas autorizadas pelo utilizador no painel
+    const faixasMarcadas = [...faixasCandidatasTopo, ...faixasCandidatasBase];
+    const poolCorte = faixasMarcadas.length > 0
+      ? Array.from(new Set(faixasMarcadas)).sort((a, b) => a - b)
+      : Array.from({ length: 20 }, (_, i) => i);
+
+    // 2. Extrair todas as dezenas pertencentes EXCLUSIVAMENTE às colunas autorizadas
+    const dezenasPermitidas = poolCorte.flatMap(linha =>
+      Array.from({ length: COLUNAS_QTD }, (_, col) => linha * COLUNAS_QTD + col)
+    );
+
+    // Validação de segurança: se as colunas autorizadas somarem menos de 50 números
+    if (dezenasPermitidas.length < 50) {
+      alert(
+        `Colunas autorizadas insuficientes! As colunas selecionadas contêm apenas ${dezenasPermitidas.length} dezenas disponíveis. São necessárias no mínimo 50 dezenas para montar os jogos da Lotomania.`
+      );
+      return;
+    }
+
+    // 3. Mapear o termómetro de frequência através das cartelas fixas e salvas
+    const contagemDezenas = Array(100).fill(0);
+    const todasCartelasBase = [
+      ...cartelasFixas.map(c => c.selecionadas),
+      ...salvos
+    ];
+
+    todasCartelasBase.forEach(grade => {
+      grade.forEach((linha, lIdx) => {
+        linha.forEach((val, cIdx) => {
+          if (val === 1 || val === 2) {
+            const numIdx = lIdx * COLUNAS_QTD + cIdx;
+            contagemDezenas[numIdx] += 1;
+          }
+        });
+      });
+    });
+
+    // 4. Ordenar apenas as dezenas autorizadas por frequência
+    const dezenasRanqueadas = [...dezenasPermitidas].sort(
+      (a, b) => contagemDezenas[b] - contagemDezenas[a]
+    );
+    const pontoCorte = Math.floor(dezenasRanqueadas.length / 2);
+    const grupoFortes = dezenasRanqueadas.slice(0, pontoCorte);
+    const grupoFracas = dezenasRanqueadas.slice(pontoCorte);
+
+    // 5. Geração dos gabaritos aplicando a dosagem 60/40
     const novosGabaritos: Gabarito5x20[] = [];
+    const assinaturasJogos = new Set<string>();
     const idBase = Date.now();
 
     for (let i = 0; i < qtdGabaritosParaGerar; i++) {
-      // Todas as faixas verdes selecionadas são proibidas neste gabarito.
-      const faixasVazias = [...poolCorte];
-      const setVazias = new Set(faixasVazias);
+      let dezenasFinais: number[] = [];
+      let chaveJogo = '';
+      let tentativasJogo = 0;
 
-      const faixasAtivas: number[] = [];
-      for (let l = 0; l < 20; l++) {
-        if (!setVazias.has(l)) {
-          faixasAtivas.push(l);
+      do {
+        const qtdFortes = Math.min(30, grupoFortes.length);
+        const qtdFracas = 50 - qtdFortes;
+        const escolhidasFortes = shuffle(grupoFortes).slice(0, qtdFortes);
+        let escolhidasFracas = shuffle(grupoFracas).slice(0, qtdFracas);
+
+        if (escolhidasFracas.length < qtdFracas) {
+          const restantes = dezenasPermitidas.filter(
+            d => !escolhidasFortes.includes(d) && !escolhidasFracas.includes(d)
+          );
+          const complemento = shuffle(restantes).slice(0, qtdFracas - escolhidasFracas.length);
+          escolhidasFracas = [...escolhidasFracas, ...complemento];
         }
-      }
 
-      const dezenasDisponiveis = faixasAtivas.flatMap(linha =>
-        Array.from({ length: COLUNAS_QTD }, (_, coluna) => linha * COLUNAS_QTD + coluna)
-      );
+        dezenasFinais = [...escolhidasFortes, ...escolhidasFracas].sort((a, b) => a - b);
+        chaveJogo = dezenasFinais.join(',');
+        tentativasJogo++;
+      } while (assinaturasJogos.has(chaveJogo) && tentativasJogo < 100);
 
-      if (dezenasDisponiveis.length < 50) {
-        alert('As faixas brancas disponíveis não somam 50 dezenas. Selecione exatamente 10 faixas verdes.');
-        return;
-      }
+      assinaturasJogos.add(chaveJogo);
 
+      // Preenchimento da matriz do gabarito
       const grade = Array(20).fill(0).map(() => Array(5).fill(0));
-      const dezenasSorteadas = dezenasDisponiveis.length === 50
-        ? dezenasDisponiveis
-        : shuffle(dezenasDisponiveis).slice(0, 50);
-
-      dezenasSorteadas.forEach(dezena => {
+      dezenasFinais.forEach(dezena => {
         const linha = Math.floor(dezena / 5);
         const coluna = dezena % 5;
-        if (!setVazias.has(linha)) {
-          grade[linha][coluna] = 1;
-        }
+        grade[linha][coluna] = 1;
       });
 
       novosGabaritos.push({
